@@ -136,12 +136,16 @@ class ICSExportPlugin extends DAV\ServerPlugin {
             [
                 'text/calendar',
                 'application/calendar+json',
+                'application/calendar+xml',
             ]
         );
 
         if (isset($queryParams['accept'])) {
             if ($queryParams['accept'] === 'application/calendar+json' || $queryParams['accept'] === 'jcal') {
                 $format = 'application/calendar+json';
+            }
+            elseif ($queryParams['accept'] === 'application/calendar+xml' || $queryParams['accept'] === 'xcal') {
+                $format = 'application/calendar+xml';
             }
         }
         if (!$format) {
@@ -248,10 +252,13 @@ class ICSExportPlugin extends DAV\ServerPlugin {
 
         switch ($format) {
             case 'text/calendar' :
-                $mergedCalendar = $mergedCalendar->serialize();
+                $mergedCalendar = VObject\Writer::write($mergedCalendar);
                 break;
             case 'application/calendar+json' :
-                $mergedCalendar = json_encode($mergedCalendar->jsonSerialize());
+                $mergedCalendar = VObject\Writer::writeJson($mergedCalendar);
+                break;
+            case 'application/calendar+xml' :
+                $mergedCalendar = VObject\Writer::writeXml($mergedCalendar);
                 break;
         }
 

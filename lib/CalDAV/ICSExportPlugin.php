@@ -248,10 +248,10 @@ class ICSExportPlugin extends DAV\ServerPlugin {
 
         switch ($format) {
             case 'text/calendar' :
-                $mergedCalendar = $mergedCalendar->serialize();
+                $mergedCalendar = VObject\Writer::write($mergedCalendar);
                 break;
             case 'application/calendar+json' :
-                $mergedCalendar = json_encode($mergedCalendar->jsonSerialize());
+                $mergedCalendar = VObject\Writer::writeJson($mergedCalendar);
                 break;
         }
 

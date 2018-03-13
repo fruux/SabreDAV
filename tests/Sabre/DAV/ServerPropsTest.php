@@ -2,6 +2,7 @@
 
 namespace Sabre\DAV;
 
+use GuzzleHttp\Psr7\ServerRequest;
 use Sabre\HTTP;
 
 require_once 'Sabre/HTTP/ResponseMock.php';
@@ -35,28 +36,27 @@ class ServerPropsTest extends AbstractServer {
 
     private function sendRequest($body, $path = '/', $headers = ['Depth' => '0']) {
 
-        $request = new HTTP\Request('PROPFIND', $path, $headers, $body);
+        $request = new ServerRequest('PROPFIND', $path, $headers, $body);
+        return $this->server->handle($request);
 
-        $this->server->httpRequest = $request;
-        $this->server->exec();
 
     }
 
     function testPropFindEmptyBody() {
 
-        $this->sendRequest("");
-        $this->assertEquals(207, $this->response->status);
+        $response = $this->sendRequest("");
+        $this->assertEquals(207, $response->getStatusCode());
 
         $this->assertEquals([
-                'X-Sabre-Version' => [Version::VERSION],
+
                 'Content-Type'    => ['application/xml; charset=utf-8'],
                 'DAV'             => ['1, 3, extended-mkcol, 2'],
                 'Vary'            => ['Brief,Prefer'],
             ],
-            $this->response->getHeaders()
+            $response->getHeaders()
          );
 
-        $body = preg_replace("/xmlns(:[A-Za-z0-9_])?=(\"|\')DAV:(\"|\')/", "xmlns\\1=\"urn:DAV\"", $this->response->body);
+        $body = preg_replace("/xmlns(:[A-Za-z0-9_])?=(\"|\')DAV:(\"|\')/", "xmlns\\1=\"urn:DAV\"", $response->getBody()->getContents());
         $xml = simplexml_load_string($body);
         $xml->registerXPathNamespace('d', 'urn:DAV');
 
@@ -70,19 +70,19 @@ class ServerPropsTest extends AbstractServer {
 
     function testPropFindEmptyBodyFile() {
 
-        $this->sendRequest("", '/test2.txt', []);
-        $this->assertEquals(207, $this->response->status);
+        $response = $this->sendRequest("", '/test2.txt', []);
+        $this->assertEquals(207, $response->getStatusCode());
 
         $this->assertEquals([
-                'X-Sabre-Version' => [Version::VERSION],
+
                 'Content-Type'    => ['application/xml; charset=utf-8'],
                 'DAV'             => ['1, 3, extended-mkcol, 2'],
                 'Vary'            => ['Brief,Prefer'],
             ],
-            $this->response->getHeaders()
+            $response->getHeaders()
          );
 
-        $body = preg_replace("/xmlns(:[A-Za-z0-9_])?=(\"|\')DAV:(\"|\')/", "xmlns\\1=\"urn:DAV\"", $this->response->body);
+        $body = preg_replace("/xmlns(:[A-Za-z0-9_])?=(\"|\')DAV:(\"|\')/", "xmlns\\1=\"urn:DAV\"", $response->getBody()->getContents());
         $xml = simplexml_load_string($body);
         $xml->registerXPathNamespace('d', 'urn:DAV');
 
@@ -103,9 +103,9 @@ class ServerPropsTest extends AbstractServer {
   </d:prop>
 </d:propfind>';
 
-        $this->sendRequest($xml);
+        $response = $this->sendRequest($xml);
 
-        $body = preg_replace("/xmlns(:[A-Za-z0-9_])?=(\"|\')DAV:(\"|\')/", "xmlns\\1=\"urn:DAV\"", $this->response->body);
+        $body = preg_replace("/xmlns(:[A-Za-z0-9_])?=(\"|\')DAV:(\"|\')/", "xmlns\\1=\"urn:DAV\"", $response->getBody()->getContents());
         $xml = simplexml_load_string($body);
         $xml->registerXPathNamespace('d', 'urn:DAV');
 
@@ -137,9 +137,9 @@ class ServerPropsTest extends AbstractServer {
   </d:prop>
 </d:propfind>';
 
-        $this->sendRequest($xml);
+        $response = $this->sendRequest($xml);
 
-        $body = preg_replace("/xmlns(:[A-Za-z0-9_])?=(\"|\')DAV:(\"|\')/", "xmlns\\1=\"urn:DAV\"", $this->response->body);
+        $body = preg_replace("/xmlns(:[A-Za-z0-9_])?=(\"|\')DAV:(\"|\')/", "xmlns\\1=\"urn:DAV\"", $response->getBody()->getContents());
         $xml = simplexml_load_string($body);
         $xml->registerXPathNamespace('d', 'urn:DAV');
 
@@ -157,8 +157,8 @@ class ServerPropsTest extends AbstractServer {
   </d:prop>
 </d:propfind>';
 
-        $this->sendRequest($xml);
-        $body = preg_replace("/xmlns(:[A-Za-z0-9_])?=(\"|\')DAV:(\"|\')/", "xmlns\\1=\"urn:DAV\"", $this->response->body);
+        $response = $this->sendRequest($xml);
+        $body = preg_replace("/xmlns(:[A-Za-z0-9_])?=(\"|\')DAV:(\"|\')/", "xmlns\\1=\"urn:DAV\"", $response->getBody()->getContents());
         $xml = simplexml_load_string($body);
         $xml->registerXPathNamespace('d', 'urn:DAV');
         $pathTests = [

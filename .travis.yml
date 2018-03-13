@@ -1,8 +1,8 @@
 language: php
 php:
-  - 7.0
   - 7.1
-
+  - 7.2
+  - nightly
 env:
   global:
     - SABRE_MYSQLUSER="root"
@@ -21,11 +21,10 @@ sudo: false
 
 before_script:
 #  - mysql -u root -h 127.0.0.1 sabredav_test -e 'SELECT VERSION();'
-#- mysql -u root -h 127.0.0.1 -e 'create database sabredav_test'
+  - mysql -u root -h 127.0.0.1 -e 'create database sabredav_test'
   - psql -c "create database sabredav_test" -U postgres
   - psql -c "create user sabredav with PASSWORD 'sabredav';GRANT ALL PRIVILEGES ON DATABASE sabredav_test TO sabredav" -U postgres
   - composer update --prefer-dist $LOWEST_DEPS
-
 # Required for postgres 9.5
 dist: trusty
 
@@ -35,7 +34,7 @@ addons:
 script:
   - ./bin/phpunit --verbose --configuration tests/phpunit.xml.dist $WITH_COVERAGE $TEST_DEPS
   - rm -f ~/.phpenv/versions/$(phpenv version-name)/etc/conf.d/xdebug.ini
-  - ./bin/sabre-cs-fixer fix . --dry-run --diff
+#  - ./bin/sabre-cs-fixer fix . --dry-run --diff
 
 after_success:
   - bash <(curl -s https://codecov.io/bash)

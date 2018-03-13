@@ -2,14 +2,18 @@
 
 namespace Sabre\DAV\Auth;
 
+use GuzzleHttp\Psr7\ServerRequest;
 use Sabre\DAV;
+use Sabre\DAV\Psr7RequestWrapper;
+use Sabre\DAV\Server;
+use Sabre\DAV\SimpleCollection;
 use Sabre\HTTP;
 
 class PluginTest extends \PHPUnit_Framework_TestCase {
 
     function testInit() {
 
-        $fakeServer = new DAV\Server(new DAV\SimpleCollection('bla'));
+        $fakeServer = new Server(new SimpleCollection('bla'), null, null, function(){});
         $plugin = new Plugin(new Backend\Mock());
         $this->assertTrue($plugin instanceof Plugin);
         $fakeServer->addPlugin($plugin);
@@ -23,28 +27,28 @@ class PluginTest extends \PHPUnit_Framework_TestCase {
      */
     function testAuthenticate() {
 
-        $fakeServer = new DAV\Server(new DAV\SimpleCollection('bla'));
+        $fakeServer = new Server(new SimpleCollection('bla'), null, null, function(){});
         $plugin = new Plugin(new Backend\Mock());
         $fakeServer->addPlugin($plugin);
         $this->assertTrue(
-            $fakeServer->emit('beforeMethod:GET', [new HTTP\Request('GET', '/'), new HTTP\Response()])
+            $fakeServer->emit('beforeMethod:GET', [new Psr7RequestWrapper(new ServerRequest('GET', '/')), new HTTP\Response()])
         );
 
     }
 
     /**
      * @depends testInit
-     * @expectedException Sabre\DAV\Exception\NotAuthenticated
+     * @expectedException \Sabre\DAV\Exception\NotAuthenticated
      */
     function testAuthenticateFail() {
 
-        $fakeServer = new DAV\Server(new DAV\SimpleCollection('bla'));
+        $fakeServer = new Server(new SimpleCollection('bla'), null, null, function(){});
         $backend = new Backend\Mock();
         $backend->fail = true;
 
         $plugin = new Plugin($backend);
         $fakeServer->addPlugin($plugin);
-        $fakeServer->emit('beforeMethod:GET', [new HTTP\Request('GET', '/'), new HTTP\Response()]);
+        $fakeServer->emit('beforeMethod:GET', [new Psr7RequestWrapper(new ServerRequest('GET', '/')), new HTTP\Response()]);
 
     }
 
@@ -53,7 +57,7 @@ class PluginTest extends \PHPUnit_Framework_TestCase {
      */
     function testAuthenticateFailDontAutoRequire() {
 
-        $fakeServer = new DAV\Server(new DAV\SimpleCollection('bla'));
+        $fakeServer = new Server(new SimpleCollection('bla'), null, null, function(){});
         $backend = new Backend\Mock();
         $backend->fail = true;
 
@@ -61,7 +65,7 @@ class PluginTest extends \PHPUnit_Framework_TestCase {
         $plugin->autoRequireLogin = false;
         $fakeServer->addPlugin($plugin);
         $this->assertTrue(
-            $fakeServer->emit('beforeMethod:GET', [new HTTP\Request('GET', '/'), new HTTP\Response()])
+            $fakeServer->emit('beforeMethod:GET', [new Psr7RequestWrapper(new ServerRequest('GET', '/')), new HTTP\Response()])
         );
         $this->assertEquals(1, count($plugin->getLoginFailedReasons()));
 
@@ -72,7 +76,7 @@ class PluginTest extends \PHPUnit_Framework_TestCase {
      */
     function testMultipleBackend() {
 
-        $fakeServer = new DAV\Server(new DAV\SimpleCollection('bla'));
+        $fakeServer = new Server(new SimpleCollection('bla'), null, null, function(){});
         $backend1 = new Backend\Mock();
         $backend2 = new Backend\Mock();
         $backend2->fail = true;
@@ -82,7 +86,7 @@ class PluginTest extends \PHPUnit_Framework_TestCase {
         $plugin->addBackend($backend2);
 
         $fakeServer->addPlugin($plugin);
-        $fakeServer->emit('beforeMethod:GET', [new HTTP\Request('GET', '/'), new HTTP\Response()]);
+        $fakeServer->emit('beforeMethod:GET', [new Psr7RequestWrapper(new ServerRequest('GET', '/')), new HTTP\Response()]);
 
         $this->assertEquals('principals/admin', $plugin->getCurrentPrincipal());
 
@@ -90,30 +94,30 @@ class PluginTest extends \PHPUnit_Framework_TestCase {
 
     /**
      * @depends testInit
-     * @expectedException Sabre\DAV\Exception
+     * @expectedException \Sabre\DAV\Exception
      */
     function testNoAuthBackend() {
 
-        $fakeServer = new DAV\Server(new DAV\SimpleCollection('bla'));
+        $fakeServer = new Server(new SimpleCollection('bla'), null, null, function(){});
 
         $plugin = new Plugin();
         $fakeServer->addPlugin($plugin);
-        $fakeServer->emit('beforeMethod:GET', [new HTTP\Request('GET', '/'), new HTTP\Response()]);
+        $fakeServer->emit('beforeMethod:GET', [new Psr7RequestWrapper(new ServerRequest('GET', '/')), new HTTP\Response()]);
 
     }
     /**
      * @depends testInit
-     * @expectedException Sabre\DAV\Exception
+     * @expectedException \Sabre\DAV\Exception
      */
     function testInvalidCheckResponse() {
 
-        $fakeServer = new DAV\Server(new DAV\SimpleCollection('bla'));
+        $fakeServer = new Server(new SimpleCollection('bla'), null, null, function(){});
         $backend = new Backend\Mock();
         $backend->invalidCheckResponse = true;
 
         $plugin = new Plugin($backend);
         $fakeServer->addPlugin($plugin);
-        $fakeServer->emit('beforeMethod:GET', [new HTTP\Request('GET', '/'), new HTTP\Response()]);
+        $fakeServer->emit('beforeMethod:GET', [new Psr7RequestWrapper(new ServerRequest('GET', '/')), new HTTP\Response()]);
 
     }
 
@@ -122,10 +126,10 @@ class PluginTest extends \PHPUnit_Framework_TestCase {
      */
     function testGetCurrentPrincipal() {
 
-        $fakeServer = new DAV\Server(new DAV\SimpleCollection('bla'));
+        $fakeServer = new Server(new SimpleCollection('bla'), null, null, function(){});
         $plugin = new Plugin(new Backend\Mock());
         $fakeServer->addPlugin($plugin);
-        $fakeServer->emit('beforeMethod:GET', [new HTTP\Request('GET', '/'), new HTTP\Response()]);
+        $fakeServer->emit('beforeMethod:GET', [new Psr7RequestWrapper(new ServerRequest('GET', '/')), new HTTP\Response()]);
         $this->assertEquals('principals/admin', $plugin->getCurrentPrincipal());
 
     }

@@ -5,12 +5,18 @@ namespace Sabre\CalDAV\Schedule;
 use Sabre\CalDAV;
 use Sabre\CalDAV\Xml\Property\ScheduleCalendarTransp;
 use Sabre\DAV;
+use Sabre\DAV\Psr7RequestWrapper;
 use Sabre\DAVACL;
-use Sabre\HTTP;
-
+use GuzzleHttp\Psr7\ServerRequest;
 class FreeBusyRequestTest extends \PHPUnit_Framework_TestCase {
 
+    /**
+     * @var Plugin
+     */
     protected $plugin;
+    /**
+     * @var DAV\Server
+     */
     protected $server;
     protected $aclPlugin;
     protected $request;
@@ -66,14 +72,11 @@ END:VCALENDAR',
             new CalDAV\CalendarRoot($principalBackend, $this->caldavBackend),
         ];
 
-        $this->request = new HTTP\Request('GET', '/', [
+        $this->request = new ServerRequest('GET', '/', [
             'Content-Type' => 'text/calendar',
         ]);
-        $this->response = new HTTP\ResponseMock();
 
-        $this->server = new DAV\Server($tree);
-        $this->server->httpRequest = $this->request;
-        $this->server->httpResponse = $this->response;
+        $this->server = new DAV\Server($tree, null, null, function(){});
 
         $this->aclPlugin = new DAVACL\Plugin();
         $this->aclPlugin->allowUnauthenticatedAccess = false;
@@ -83,7 +86,7 @@ END:VCALENDAR',
         $authBackend->setPrincipal('principals/user1');
         $this->authPlugin = new DAV\Auth\Plugin($authBackend);
         // Forcing authentication to work.
-        $this->authPlugin->beforeMethod($this->request, $this->response);
+        $this->authPlugin->beforeMethod(new DAV\Psr7RequestWrapper($this->request), $this->server->httpResponse);
         $this->server->addPlugin($this->authPlugin);
 
         // CalDAV plugin
@@ -98,56 +101,52 @@ END:VCALENDAR',
 
     function testWrongContentType() {
 
-        $this->server->httpRequest = new HTTP\Request(
+        $request = new ServerRequest(
             'POST',
             '/calendars/user1/outbox',
             ['Content-Type' => 'text/plain']
         );
 
         $this->assertNull(
-            $this->plugin->httpPost($this->server->httpRequest, $this->server->httpResponse)
+            $this->plugin->httpPost(new DAV\Psr7RequestWrapper($request), $this->server->httpResponse)
         );
 
     }
 
     function testNotFound() {
 
-        $this->server->httpRequest = new HTTP\Request(
+        $request = new ServerRequest(
             'POST',
             '/calendars/user1/blabla',
             ['Content-Type' => 'text/calendar']
         );
 
         $this->assertNull(
-            $this->plugin->httpPost($this->server->httpRequest, $this->server->httpResponse)
+            $this->plugin->httpPost(new Psr7RequestWrapper($request), $this->server->httpResponse)
         );
 
     }
 
     function testNotOutbox() {
 
-        $this->server->httpRequest = new HTTP\Request(
+        $request = new ServerRequest(
             'POST',
             '/calendars/user1/inbox',
             ['Content-Type' => 'text/calendar']
         );
 
         $this->assertNull(
-            $this->plugin->httpPost($this->server->httpRequest, $this->server->httpResponse)
+            $this->plugin->httpPost(new Psr7RequestWrapper($request), $this->server->httpResponse)
         );
 
     }
 
     /**
-     * @expectedException Sabre\DAV\Exception\BadRequest
+     * @expectedException \Sabre\DAV\Exception\BadRequest
      */
     function testNoItipMethod() {
 
-        $this->server->httpRequest = new HTTP\Request(
-            'POST',
-            '/calendars/user1/outbox',
-            ['Content-Type' => 'text/calendar']
-        );
+
 
         $body = <<<ICS
 BEGIN:VCALENDAR
@@ -156,8 +155,13 @@ END:VFREEBUSY
 END:VCALENDAR
 ICS;
 
-        $this->server->httpRequest->setBody($body);
-        $this->plugin->httpPost($this->server->httpRequest, $this->server->httpResponse);
+        $request = new ServerRequest(
+            'POST',
+            '/calendars/user1/outbox',
+            ['Content-Type' => 'text/calendar'],
+            $body
+        );
+        $this->plugin->httpPost(new Psr7RequestWrapper($request), $this->server->httpResponse);
 
     }
 
@@ -166,11 +170,7 @@ ICS;
      */
     function testNoVFreeBusy() {
 
-        $this->server->httpRequest = new HTTP\Request(
-            'POST',
-            '/calendars/user1/outbox',
-            ['Content-Type' => 'text/calendar']
-        );
+
 
         $body = <<<ICS
 BEGIN:VCALENDAR
@@ -180,47 +180,43 @@ END:VEVENT
 END:VCALENDAR
 ICS;
 
-        $this->server->httpRequest->setBody($body);
-        $this->plugin->httpPost($this->server->httpRequest, $this->server->httpResponse);
+        $request = new ServerRequest(
+            'POST',
+            '/calendars/user1/outbox',
+            ['Content-Type' => 'text/calendar'],
+            $body
+        );
+        $this->plugin->httpPost(new Psr7RequestWrapper($request), $this->server->httpResponse);
 
     }
 
     /**
-     * @expectedException Sabre\DAV\Exception\Forbidden
+     * @expectedException \Sabre\DAV\Exception\Forbidden
      */
     function testIncorrectOrganizer() {
 
-        $this->server->httpRequest = new HTTP\Request(
+        $request = new ServerRequest(
             'POST',
             '/calendars/user1/outbox',
-            ['Content-Type' => 'text/calendar']
-        );
-
-
-        $body = <<<ICS
+            ['Content-Type' => 'text/calendar'],
+            <<<ICS
 BEGIN:VCALENDAR
 METHOD:REQUEST
 BEGIN:VFREEBUSY
 ORGANIZER:mailto:john@wayne.org
 END:VFREEBUSY
 END:VCALENDAR
-ICS;
+ICS
+        );
 
-        $this->server->httpRequest->setBody($body);
-        $this->plugin->httpPost($this->server->httpRequest, $this->server->httpResponse);
+        $this->plugin->httpPost(new Psr7RequestWrapper($request), $this->server->httpResponse);
 
     }
 
     /**
-     * @expectedException Sabre\DAV\Exception\BadRequest
+     * @expectedException \Sabre\DAV\Exception\BadRequest
      */
     function testNoAttendees() {
-
-        $this->server->httpRequest = new HTTP\Request(
-            'POST',
-            '/calendars/user1/outbox',
-            ['Content-Type' => 'text/calendar']
-        );
 
         $body = <<<ICS
 BEGIN:VCALENDAR
@@ -230,22 +226,25 @@ ORGANIZER:mailto:user1.sabredav@sabredav.org
 END:VFREEBUSY
 END:VCALENDAR
 ICS;
+        $request = new ServerRequest(
+            'POST',
+            '/calendars/user1/outbox',
+            ['Content-Type' => 'text/calendar'],
+            $body
+        );
 
-        $this->server->httpRequest->setBody($body);
-        $this->plugin->httpPost($this->server->httpRequest, $this->server->httpResponse);
+
+
+        $this->plugin->httpPost(new Psr7RequestWrapper($request), $this->server->httpResponse);
 
     }
 
     /**
-     * @expectedException Sabre\DAV\Exception\BadRequest
+     * @expectedException \Sabre\DAV\Exception\BadRequest
      */
     function testNoDTStart() {
 
-        $this->server->httpRequest = new HTTP\Request(
-            'POST',
-            '/calendars/user1/outbox',
-            ['Content-Type' => 'text/calendar']
-        );
+
 
         $body = <<<ICS
 BEGIN:VCALENDAR
@@ -257,18 +256,19 @@ END:VFREEBUSY
 END:VCALENDAR
 ICS;
 
-        $this->server->httpRequest->setBody($body);
-        $this->plugin->httpPost($this->server->httpRequest, $this->server->httpResponse);
+        $request = new ServerRequest(
+            'POST',
+            '/calendars/user1/outbox',
+            ['Content-Type' => 'text/calendar'],
+            $body
+        );
+        $this->plugin->httpPost(new Psr7RequestWrapper($request), $this->server->httpResponse);
 
     }
 
     function testSucceed() {
 
-        $this->server->httpRequest = new HTTP\Request(
-            'POST',
-            '/calendars/user1/outbox',
-            ['Content-Type' => 'text/calendar']
-        );
+
 
         $body = <<<ICS
 BEGIN:VCALENDAR
@@ -283,19 +283,31 @@ END:VFREEBUSY
 END:VCALENDAR
 ICS;
 
-        $this->server->httpRequest->setBody($body);
+        $request = new ServerRequest(
+            'POST',
+            '/calendars/user1/outbox',
+            ['Content-Type' => 'text/calendar'],
+            $body
+        );
 
         // Lazily making the current principal an admin.
         $this->aclPlugin->adminPrincipals[] = 'principals/user1';
 
         $this->assertFalse(
-            $this->plugin->httpPost($this->server->httpRequest, $this->response)
+            $this->plugin->httpPost(new Psr7RequestWrapper($request), $this->server->httpResponse)
         );
-
-        $this->assertEquals(200, $this->response->status);
+        $response = $this->server->handle(new ServerRequest(
+            'POST',
+            '/calendars/user1/outbox',
+            ['Content-Type' => 'text/calendar'],
+            $body
+        ));
+        $responseBody = $response->getBody()->getContents();
+        $this->assertEquals(200, $response->getStatusCode(), $responseBody);
         $this->assertEquals([
             'Content-Type' => ['application/xml'],
-        ], $this->response->getHeaders());
+
+        ], $response->getHeaders());
 
         $strings = [
             '<d:href>mailto:user2.sabredav@sabredav.org</d:href>',
@@ -307,13 +319,13 @@ ICS;
 
         foreach ($strings as $string) {
             $this->assertTrue(
-                strpos($this->response->body, $string) !== false,
-                'The response body did not contain: ' . $string . 'Full response: ' . $this->response->body
+                strpos($responseBody, $string) !== false,
+                'The response body did not contain: ' . $string . 'Full response: ' . $responseBody
             );
         }
 
         $this->assertTrue(
-            strpos($this->response->body, 'FREEBUSY;FBTYPE=BUSY:20110101T080000Z/20110101T090000Z') == false,
+            strpos($responseBody, 'FREEBUSY;FBTYPE=BUSY:20110101T080000Z/20110101T090000Z') == false,
             'The response body did contain free busy info from a transparent calendar.'
         );
 
@@ -329,11 +341,6 @@ ICS;
         $this->caldavBackend->deleteCalendar(1);
         $this->caldavBackend->deleteCalendar(2);
 
-        $this->server->httpRequest = new HTTP\Request(
-            'POST',
-            '/calendars/user1/outbox',
-            ['Content-Type' => 'text/calendar']
-        );
 
         $body = <<<ICS
 BEGIN:VCALENDAR
@@ -347,19 +354,34 @@ END:VFREEBUSY
 END:VCALENDAR
 ICS;
 
-        $this->server->httpRequest->setBody($body);
+        $request = new ServerRequest(
+            'POST',
+            '/calendars/user1/outbox',
+            ['Content-Type' => 'text/calendar'],
+            $body
+        );
+
 
         // Lazily making the current principal an admin.
         $this->aclPlugin->adminPrincipals[] = 'principals/user1';
 
         $this->assertFalse(
-            $this->plugin->httpPost($this->server->httpRequest, $this->response)
+            $this->plugin->httpPost(new Psr7RequestWrapper($request), $this->server->httpResponse)
         );
 
-        $this->assertEquals(200, $this->response->status);
+        $request = new ServerRequest(
+            'POST',
+            '/calendars/user1/outbox',
+            ['Content-Type' => 'text/calendar'],
+            $body
+        );
+        $response = $this->server->handle($request);
+        $responseBody = $response->getBody()->getContents();
+        $this->assertEquals(200, $response->getStatusCode(), $responseBody);
         $this->assertEquals([
             'Content-Type' => ['application/xml'],
-        ], $this->response->getHeaders());
+
+        ], $response->getHeaders());
 
         $strings = [
             '<d:href>mailto:user2.sabredav@sabredav.org</d:href>',
@@ -368,21 +390,14 @@ ICS;
 
         foreach ($strings as $string) {
             $this->assertTrue(
-                strpos($this->response->body, $string) !== false,
-                'The response body did not contain: ' . $string . 'Full response: ' . $this->response->body
+                strpos($responseBody, $string) !== false,
+                'The response body did not contain: ' . $string . 'Full response: ' . $responseBody
             );
         }
 
     }
 
     function testNoCalendarHomeFound() {
-
-        $this->server->httpRequest = new HTTP\Request(
-            'POST',
-            '/calendars/user1/outbox',
-            ['Content-Type' => 'text/calendar']
-        );
-
         $body = <<<ICS
 BEGIN:VCALENDAR
 METHOD:REQUEST
@@ -395,7 +410,14 @@ END:VFREEBUSY
 END:VCALENDAR
 ICS;
 
-        $this->server->httpRequest->setBody($body);
+        $request = new ServerRequest(
+            'POST',
+            '/calendars/user1/outbox',
+            ['Content-Type' => 'text/calendar'],
+            $body
+        );
+
+
 
         // Lazily making the current principal an admin.
         $this->aclPlugin->adminPrincipals[] = 'principals/user1';
@@ -408,13 +430,24 @@ ICS;
         });
 
         $this->assertFalse(
-            $this->plugin->httpPost($this->server->httpRequest, $this->response)
+            $this->plugin->httpPost(new Psr7RequestWrapper($request), $this->server->httpResponse)
         );
 
-        $this->assertEquals(200, $this->response->status);
+
+        $request = new ServerRequest(
+            'POST',
+            '/calendars/user1/outbox',
+            ['Content-Type' => 'text/calendar'],
+            $body
+        );
+        $response = $this->server->handle($request);
+        $responseBody = $response->getBody()->getContents();
+
+        $this->assertEquals(200, $response->getStatusCode());
         $this->assertEquals([
             'Content-Type' => ['application/xml'],
-        ], $this->response->getHeaders());
+
+        ], $response->getHeaders());
 
         $strings = [
             '<d:href>mailto:user2.sabredav@sabredav.org</d:href>',
@@ -423,8 +456,8 @@ ICS;
 
         foreach ($strings as $string) {
             $this->assertTrue(
-                strpos($this->response->body, $string) !== false,
-                'The response body did not contain: ' . $string . 'Full response: ' . $this->response->body
+                strpos($responseBody, $string) !== false,
+                'The response body did not contain: ' . $string . 'Full response: ' . $responseBody
             );
         }
 
@@ -432,11 +465,6 @@ ICS;
 
     function testNoInboxFound() {
 
-        $this->server->httpRequest = new HTTP\Request(
-            'POST',
-            '/calendars/user1/outbox',
-            ['Content-Type' => 'text/calendar']
-        );
 
         $body = <<<ICS
 BEGIN:VCALENDAR
@@ -450,7 +478,12 @@ END:VFREEBUSY
 END:VCALENDAR
 ICS;
 
-        $this->server->httpRequest->setBody($body);
+        $request = new ServerRequest(
+            'POST',
+            '/calendars/user1/outbox',
+            ['Content-Type' => 'text/calendar'],
+            $body
+        );
 
         // Lazily making the current principal an admin.
         $this->aclPlugin->adminPrincipals[] = 'principals/user1';
@@ -463,13 +496,23 @@ ICS;
         });
 
         $this->assertFalse(
-            $this->plugin->httpPost($this->server->httpRequest, $this->response)
+            $this->plugin->httpPost(new Psr7RequestWrapper($request), $this->server->httpResponse)
         );
 
-        $this->assertEquals(200, $this->response->status);
+        $request = new ServerRequest(
+            'POST',
+            '/calendars/user1/outbox',
+            ['Content-Type' => 'text/calendar'],
+            $body
+        );
+
+        $response = $this->server->handle($request);
+        $responseBody = $response->getBody()->getContents();
+        $this->assertEquals(200, $response->getStatusCode(), $responseBody);
         $this->assertEquals([
             'Content-Type' => ['application/xml'],
-        ], $this->response->getHeaders());
+
+        ], $response->getHeaders());
 
         $strings = [
             '<d:href>mailto:user2.sabredav@sabredav.org</d:href>',
@@ -478,8 +521,8 @@ ICS;
 
         foreach ($strings as $string) {
             $this->assertTrue(
-                strpos($this->response->body, $string) !== false,
-                'The response body did not contain: ' . $string . 'Full response: ' . $this->response->body
+                strpos($responseBody, $string) !== false,
+                'The response body did not contain: ' . $string . 'Full response: ' .$responseBody
             );
         }
 
@@ -487,11 +530,7 @@ ICS;
 
     function testSucceedUseVAVAILABILITY() {
 
-        $this->server->httpRequest = new HTTP\Request(
-            'POST',
-            '/calendars/user1/outbox',
-            ['Content-Type' => 'text/calendar']
-        );
+
 
         $body = <<<ICS
 BEGIN:VCALENDAR
@@ -505,7 +544,12 @@ END:VFREEBUSY
 END:VCALENDAR
 ICS;
 
-        $this->server->httpRequest->setBody($body);
+        $request = new ServerRequest(
+            'POST',
+            '/calendars/user1/outbox',
+            ['Content-Type' => 'text/calendar'],
+            $body
+        );
 
         // Lazily making the current principal an admin.
         $this->aclPlugin->adminPrincipals[] = 'principals/user1';
@@ -534,13 +578,20 @@ ICS;
         });
 
         $this->assertFalse(
-            $this->plugin->httpPost($this->server->httpRequest, $this->response)
+            $this->plugin->httpPost(new Psr7RequestWrapper($request), $this->server->httpResponse)
         );
 
-        $this->assertEquals(200, $this->response->status);
+        $response = $this->server->handle(new ServerRequest(
+            'POST',
+            '/calendars/user1/outbox',
+            ['Content-Type' => 'text/calendar'],
+            $body
+        ));
+        $responseBody = $response->getBody()->getContents();
+        $this->assertEquals(200, $response->getStatusCode(), $responseBody);
         $this->assertEquals([
             'Content-Type' => ['application/xml'],
-        ], $this->response->getHeaders());
+        ], $response->getHeaders());
 
         $strings = [
             '<d:href>mailto:user2.sabredav@sabredav.org</d:href>',
@@ -552,8 +603,8 @@ ICS;
 
         foreach ($strings as $string) {
             $this->assertTrue(
-                strpos($this->response->body, $string) !== false,
-                'The response body did not contain: ' . $string . 'Full response: ' . $this->response->body
+                strpos($responseBody, $string) !== false,
+                'The response body did not contain: ' . $string . 'Full response: ' . $responseBody
             );
         }
 

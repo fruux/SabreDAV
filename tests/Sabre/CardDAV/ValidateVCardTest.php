@@ -2,6 +2,8 @@
 
 namespace Sabre\CardDAV;
 
+use GuzzleHttp\Psr7\ServerRequest;
+use Psr\Http\Message\ResponseInterface;
 use Sabre\DAV;
 use Sabre\DAVACL;
 use Sabre\HTTP;
@@ -10,6 +12,7 @@ require_once 'Sabre/HTTP/ResponseMock.php';
 
 class ValidateVCardTest extends \PHPUnit_Framework_TestCase {
 
+    /** @var DAV\Server */
     protected $server;
     protected $cardBackend;
 
@@ -30,30 +33,25 @@ class ValidateVCardTest extends \PHPUnit_Framework_TestCase {
             new AddressBookRoot($principalBackend, $this->cardBackend),
         ];
 
-        $this->server = new DAV\Server($tree);
-        $this->server->sapi = new HTTP\SapiMock();
+        $this->server = new DAV\Server($tree, null, null, function(){});
+
         $this->server->debugExceptions = true;
 
         $plugin = new Plugin();
         $this->server->addPlugin($plugin);
 
-        $response = new HTTP\ResponseMock();
-        $this->server->httpResponse = $response;
-
     }
 
-    function request(HTTP\Request $request, $expectedStatus = null) {
-
-        $this->server->httpRequest = $request;
-        $this->server->exec();
-
+    function request(ServerRequest $request, $expectedStatus = null): ResponseInterface
+    {
+        $result = $this->server->handle($request);
         if ($expectedStatus) {
 
-            $realStatus = $this->server->httpResponse->getStatus();
+            $realStatus = $result->getStatusCode();
 
             $msg = '';
             if ($realStatus !== $expectedStatus) {
-                $msg = 'Response body: ' . $this->server->httpResponse->getBodyAsString();
+                $msg = 'Response body: ' .$result->getBody()->getContents();
             }
             $this->assertEquals(
                 $expectedStatus,
@@ -61,30 +59,24 @@ class ValidateVCardTest extends \PHPUnit_Framework_TestCase {
                 $msg
             );
         }
-
-        return $this->server->httpResponse;
+        return $result;
 
     }
 
     function testCreateFile() {
 
-        $request = HTTP\Sapi::createFromServerArray([
-            'REQUEST_METHOD' => 'PUT',
-            'REQUEST_URI'    => '/addressbooks/admin/addressbook1/blabla.vcf',
-        ]);
+        $request = new ServerRequest('PUT', '/addressbooks/admin/addressbook1/blabla.vcf');
 
         $response = $this->request($request);
 
-        $this->assertEquals(415, $response->status);
+
+        $this->assertEquals(415, $response->getStatusCode(), $response->getBody()->getContents());
 
     }
 
     function testCreateFileValid() {
 
-        $request = new HTTP\Request(
-            'PUT',
-            '/addressbooks/admin/addressbook1/blabla.vcf'
-        );
+
 
         $vcard = <<<VCF
 BEGIN:VCARD
@@ -94,17 +86,22 @@ FN:Firstname LastName
 N:LastName;FirstName;;;
 END:VCARD
 VCF;
-        $request->setBody($vcard);
+        $request = new ServerRequest(
+            'PUT',
+            '/addressbooks/admin/addressbook1/blabla.vcf',
+            [],
+            $vcard
+        );
 
         $response = $this->request($request, 201);
 
         // The custom Ew header should not be set
-        $this->assertNull(
-            $response->getHeader('X-Sabre-Ew-Gross')
+        $this->assertEmpty(
+            $response->getHeaderLine('X-Sabre-Ew-Gross')
         );
         // Valid, non-auto-fixed responses should contain an ETag.
         $this->assertTrue(
-            $response->getHeader('ETag') !== null,
+            $response->getHeaderLine('ETag') !== null,
             'We did not receive an etag'
         );
 
@@ -128,10 +125,7 @@ VCF;
      */
     function testCreateVCardAutoFix() {
 
-        $request = new HTTP\Request(
-            'PUT',
-            '/addressbooks/admin/addressbook1/blabla.vcf'
-        );
+
 
         // The error in this vcard is that there's not enough semi-colons in N
         $vcard = <<<VCF
@@ -143,18 +137,23 @@ N:LastName;FirstName;;
 END:VCARD
 VCF;
 
-        $request->setBody($vcard);
+        $request = new ServerRequest(
+            'PUT',
+            '/addressbooks/admin/addressbook1/blabla.vcf',
+            [],
+            $vcard
+        );
 
         $response = $this->request($request, 201);
 
         // Auto-fixed vcards should NOT return an etag
-        $this->assertNull(
+        $this->assertEmpty(
             $response->getHeader('ETag')
         );
 
         // We should have gotten an Ew header
-        $this->assertNotNull(
-            $response->getHeader('X-Sabre-Ew-Gross')
+        $this->assertNotEmpty(
+            $response->getHeaderLine('X-Sabre-Ew-Gross')
         );
 
         $expectedVCard = <<<VCF
@@ -189,13 +188,7 @@ VCF;
      */
     function testCreateVCardStrictFail() {
 
-        $request = new HTTP\Request(
-            'PUT',
-            '/addressbooks/admin/addressbook1/blabla.vcf',
-            [
-                'Prefer' => 'handling=strict',
-            ]
-        );
+
 
         // The error in this vcard is that there's not enough semi-colons in N
         $vcard = <<<VCF
@@ -206,18 +199,21 @@ FN:Firstname LastName
 N:LastName;FirstName;;
 END:VCARD
 VCF;
-
-        $request->setBody($vcard);
+        $request = new ServerRequest(
+            'PUT',
+            '/addressbooks/admin/addressbook1/blabla.vcf',
+            [
+                'Prefer' => 'handling=strict',
+            ],
+            $vcard
+        );
         $this->request($request, 415);
 
     }
 
     function testCreateFileNoUID() {
 
-        $request = new HTTP\Request(
-            'PUT',
-            '/addressbooks/admin/addressbook1/blabla.vcf'
-        );
+
         $vcard = <<<VCF
 BEGIN:VCARD
 VERSION:4.0
@@ -225,7 +221,13 @@ FN:Firstname LastName
 N:LastName;FirstName;;;
 END:VCARD
 VCF;
-        $request->setBody($vcard);
+
+        $request = new ServerRequest(
+            'PUT',
+            '/addressbooks/admin/addressbook1/blabla.vcf',
+            [],
+            $vcard
+        );
 
         $response = $this->request($request, 201);
 
@@ -238,15 +240,15 @@ VCF;
 
     function testCreateFileJson() {
 
-        $request = new HTTP\Request(
+        $request = new ServerRequest(
             'PUT',
-            '/addressbooks/admin/addressbook1/blabla.vcf'
-        );
-        $request->setBody('[ "vcard" , [ [ "VERSION", {}, "text", "4.0"], [ "UID" , {}, "text", "foo" ], [ "FN", {}, "text", "FirstName LastName"] ] ]');
+            '/addressbooks/admin/addressbook1/blabla.vcf',
+            [],
+            '[ "vcard" , [ [ "VERSION", {}, "text", "4.0"], [ "UID" , {}, "text", "foo" ], [ "FN", {}, "text", "FirstName LastName"] ] ]');
 
         $response = $this->request($request);
 
-        $this->assertEquals(201, $response->status, 'Incorrect status returned! Full response body: ' . $response->body);
+        $this->assertEquals(201, $response->getStatusCode(), 'Incorrect status returned! Full response body: ' . $response->getBody()->getContents());
 
         $foo = $this->cardBackend->getCard('addressbook1', 'blabla.vcf');
         $this->assertEquals("BEGIN:VCARD\r\nVERSION:4.0\r\nUID:foo\r\nFN:FirstName LastName\r\nEND:VCARD\r\n", $foo['carddata']);
@@ -255,42 +257,43 @@ VCF;
 
     function testCreateFileVCalendar() {
 
-        $request = HTTP\Sapi::createFromServerArray([
-            'REQUEST_METHOD' => 'PUT',
-            'REQUEST_URI'    => '/addressbooks/admin/addressbook1/blabla.vcf',
-        ]);
-        $request->setBody("BEGIN:VCALENDAR\r\nEND:VCALENDAR\r\n");
+        $request = new ServerRequest('PUT',
+            '/addressbooks/admin/addressbook1/blabla.vcf',
+            [],
+            "BEGIN:VCALENDAR\r\nEND:VCALENDAR\r\n"
+        );
 
         $response = $this->request($request);
 
-        $this->assertEquals(415, $response->status, 'Incorrect status returned! Full response body: ' . $response->body);
+        $this->assertEquals(415, $response->getStatusCode(), 'Incorrect status returned! Full response body: ' . $response->getBody()->getContents());
 
     }
 
     function testUpdateFile() {
 
         $this->cardBackend->createCard('addressbook1', 'blabla.vcf', 'foo');
-        $request = new HTTP\Request(
+        $request = new ServerRequest(
             'PUT',
             '/addressbooks/admin/addressbook1/blabla.vcf'
         );
 
-        $response = $this->request($request, 415);
+        $this->request($request, 415);
 
     }
 
     function testUpdateFileParsableBody() {
 
         $this->cardBackend->createCard('addressbook1', 'blabla.vcf', 'foo');
-        $request = new HTTP\Request(
+        $body = "BEGIN:VCARD\r\nVERSION:4.0\r\nUID:foo\r\nFN:FirstName LastName\r\nEND:VCARD\r\n";
+        $request = new ServerRequest(
             'PUT',
-            '/addressbooks/admin/addressbook1/blabla.vcf'
+            '/addressbooks/admin/addressbook1/blabla.vcf',
+            [],
+            $body
         );
 
-        $body = "BEGIN:VCARD\r\nVERSION:4.0\r\nUID:foo\r\nFN:FirstName LastName\r\nEND:VCARD\r\n";
-        $request->setBody($body);
 
-        $response = $this->request($request, 204);
+        $this->request($request, 204);
 
         $expected = [
             'uri'      => 'blabla.vcf',

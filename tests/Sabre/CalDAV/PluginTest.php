@@ -4,14 +4,16 @@ namespace Sabre\CalDAV;
 
 use DateTime;
 use DateTimeZone;
+use GuzzleHttp\Psr7\ServerRequest;
 use Sabre\DAV;
+use Sabre\DAV\Server;
 use Sabre\DAVACL;
-use Sabre\HTTP;
+use Sabre\HTTP\Response;
 
 class PluginTest extends \PHPUnit_Framework_TestCase {
 
     /**
-     * @var DAV\Server
+     * @var Server
      */
     protected $server;
     /**
@@ -73,8 +75,8 @@ class PluginTest extends \PHPUnit_Framework_TestCase {
         $root->addChild($calendars);
         $root->addChild($principals);
 
-        $this->server = new DAV\Server($root);
-        $this->server->sapi = new HTTP\SapiMock();
+        $this->server = new Server($root, null, null, function(){});
+
         $this->server->debugExceptions = true;
         $this->server->setBaseUri('/');
         $this->plugin = new Plugin();
@@ -93,11 +95,7 @@ class PluginTest extends \PHPUnit_Framework_TestCase {
         $this->server->addPlugin($authPlugin);
 
         // This forces a login
-        $authPlugin->beforeMethod(new HTTP\Request('GET', '/'), new HTTP\Response());
-
-        $this->response = new HTTP\ResponseMock();
-        $this->server->httpResponse = $this->response;
-
+        $authPlugin->beforeMethod(new DAV\Psr7RequestWrapper(new ServerRequest('GET', '/')), new Response());
     }
 
     function testSimple() {
@@ -112,32 +110,21 @@ class PluginTest extends \PHPUnit_Framework_TestCase {
     }
 
     function testUnknownMethodPassThrough() {
-
-        $request = new HTTP\Request('MKBREAKFAST', '/');
-
-        $this->server->httpRequest = $request;
-        $this->server->exec();
-
-        $this->assertEquals(501, $this->response->status, 'Incorrect status returned. Full response body:' . $this->response->body);
+        $request = new ServerRequest('MKBREAKFAST', '/');
+        $response = $this->server->handle($request);
+        $this->assertEquals(501, $response->getStatusCode(), 'Incorrect status returned. Full response body:' . $response->getBody()->getContents());
 
     }
 
     function testReportPassThrough() {
-
-        $request = new HTTP\Request('REPORT', '/', ['Content-Type' => 'application/xml']);
-        $request->setBody('<?xml version="1.0"?><s:somereport xmlns:s="http://www.rooftopsolutions.nl/NS/example" />');
-
-        $this->server->httpRequest = $request;
-        $this->server->exec();
-
-        $this->assertEquals(415, $this->response->status);
+        $request = new ServerRequest('REPORT', '/', ['Content-Type' => 'application/xml'], '<?xml version="1.0"?><s:somereport xmlns:s="http://www.rooftopsolutions.nl/NS/example" />');
+        $response = $this->server->handle($request);
+        $this->assertEquals(415, $response->getStatusCode());
 
     }
 
     function testMkCalendarBadLocation() {
 
-        $request = new HTTP\Request('MKCALENDAR', '/blabla');
-
         $body = '<?xml version="1.0" encoding="utf-8" ?>
    <C:mkcalendar xmlns:D="DAV:"
                  xmlns:C="urn:ietf:params:xml:ns:caldav">
@@ -176,18 +163,15 @@ class PluginTest extends \PHPUnit_Framework_TestCase {
      </D:set>
    </C:mkcalendar>';
 
-        $request->setBody($body);
-        $this->server->httpRequest = $request;
-        $this->server->exec();
+        $request = new ServerRequest('MKCALENDAR', '/blabla', [], $body);
 
-        $this->assertEquals(403, $this->response->status);
+        $response = $this->server->handle($request);
+        $this->assertEquals(403, $response->getStatusCode());
 
     }
 
     function testMkCalendarNoParentNode() {
 
-        $request = new HTTP\Request('MKCALENDAR', '/doesntexist/calendar');
-
         $body = '<?xml version="1.0" encoding="utf-8" ?>
    <C:mkcalendar xmlns:D="DAV:"
                  xmlns:C="urn:ietf:params:xml:ns:caldav">
@@ -226,20 +210,16 @@ class PluginTest extends \PHPUnit_Framework_TestCase {
      </D:set>
    </C:mkcalendar>';
 
-        $request->setBody($body);
-        $this->server->httpRequest = $request;
-        $this->server->exec();
+        $request = new ServerRequest('MKCALENDAR', '/doesntexist/calendar', [], $body);
 
-        $this->assertEquals(409, $this->response->status);
+        $response = $this->server->handle($request);
+        $this->assertEquals(409, $response->getStatusCode());
 
     }
 
     function testMkCalendarExistingCalendar() {
 
-        $request = HTTP\Sapi::createFromServerArray([
-            'REQUEST_METHOD' => 'MKCALENDAR',
-            'REQUEST_URI'    => '/calendars/user1/UUID-123467',
-        ]);
+
 
         $body = '<?xml version="1.0" encoding="utf-8" ?>
    <C:mkcalendar xmlns:D="DAV:"
@@ -279,17 +259,17 @@ class PluginTest extends \PHPUnit_Framework_TestCase {
      </D:set>
    </C:mkcalendar>';
 
-        $request->setBody($body);
-        $this->server->httpRequest = $request;
-        $this->server->exec();
+        $request = new ServerRequest('MKCALENDAR', '/calendars/user1/UUID-123467', [], $body);
+        $response = $this->server->handle($request);
 
-        $this->assertEquals(405, $this->response->status);
+
+        $this->assertEquals(405, $response->getStatusCode());
 
     }
 
     function testMkCalendarSucceed() {
 
-        $request = new HTTP\Request('MKCALENDAR', '/calendars/user1/NEWCALENDAR');
+
 
         $timezone = 'BEGIN:VCALENDAR
 PRODID:-//Example Corp.//CalDAV Client//EN
@@ -330,11 +310,11 @@ END:VCALENDAR';
      </D:set>
    </C:mkcalendar>';
 
-        $request->setBody($body);
-        $this->server->httpRequest = $request;
-        $this->server->exec();
 
-        $this->assertEquals(201, $this->response->status, 'Invalid response code received. Full response body: ' . $this->response->body);
+        $request = new ServerRequest('MKCALENDAR', '/calendars/user1/NEWCALENDAR', [], $body);
+
+        $response = $this->server->handle($request);
+        $this->assertEquals(201, $response->getStatusCode(), 'Invalid response code received. Full response body: ' . $response->getBody()->getContents());
 
         $calendars = $this->caldavBackend->getCalendarsForUser('principals/user1');
         $this->assertEquals(3, count($calendars));
@@ -374,13 +354,9 @@ END:VCALENDAR';
 
     function testMkCalendarEmptyBodySucceed() {
 
-        $request = new HTTP\Request('MKCALENDAR', '/calendars/user1/NEWCALENDAR');
-
-        $request->setBody('');
-        $this->server->httpRequest = $request;
-        $this->server->exec();
-
-        $this->assertEquals(201, $this->response->status, 'Invalid response code received. Full response body: ' . $this->response->body);
+        $request = new ServerRequest('MKCALENDAR', '/calendars/user1/NEWCALENDAR', [], '');
+        $response = $this->server->handle($request);
+        $this->assertEquals(201, $response->getStatusCode(), 'Invalid response code received. Full response body: ' . $response->getBody()->getContents());
 
         $calendars = $this->caldavBackend->getCalendarsForUser('principals/user1');
         $this->assertEquals(3, count($calendars));
@@ -417,29 +393,23 @@ END:VCALENDAR';
 
     function testMkCalendarBadXml() {
 
-        $request = new HTTP\Request('MKCALENDAR', '/blabla');
-        $body = 'This is not xml';
-
-        $request->setBody($body);
-        $this->server->httpRequest = $request;
-        $this->server->exec();
-
-        $this->assertEquals(400, $this->response->status);
+        $request = new ServerRequest('MKCALENDAR', '/blabla', [], 'This is not xml');
+        $response = $this->server->handle($request);
+        $this->assertEquals(400, $response->getStatusCode());
 
     }
 
     function testPrincipalProperties() {
 
-        $httpRequest = new HTTP\Request('FOO', '/blabla', ['Host' => 'sabredav.org']);
-        $this->server->httpRequest = $httpRequest;
+        $httpRequest = new ServerRequest('FOO', '/blabla', ['Host' => 'sabredav.org']);
 
-        $props = $this->server->getPropertiesForPath('/principals/user1', [
+        $props = iterator_to_array($this->server->getPropertiesIteratorForPath('/principals/user1', [
             '{' . Plugin::NS_CALDAV . '}calendar-home-set',
             '{' . Plugin::NS_CALENDARSERVER . '}calendar-proxy-read-for',
             '{' . Plugin::NS_CALENDARSERVER . '}calendar-proxy-write-for',
             '{' . Plugin::NS_CALENDARSERVER . '}notification-URL',
             '{' . Plugin::NS_CALENDARSERVER . '}email-address-set',
-        ]);
+        ]));
 
         $this->assertArrayHasKey(0, $props);
         $this->assertArrayHasKey(200, $props[0]);
@@ -560,13 +530,12 @@ END:VCALENDAR';
             '<d:href>/calendars/user1/UUID-123467/UUID-2345</d:href>' .
             '</c:calendar-multiget>';
 
-        $request = new HTTP\Request('REPORT', '/calendars/user1', ['Depth' => '1']);
-        $request->setBody($body);
+        $request = new ServerRequest('REPORT', '/calendars/user1', ['Depth' => '1'], $body);
+        $response = $this->server->handle($request);
 
-        $this->server->httpRequest = $request;
-        $this->server->exec();
 
-        $this->assertEquals(207, $this->response->status, 'Invalid HTTP status received. Full response body');
+
+        $this->assertEquals(207, $response->getStatusCode(), 'Invalid HTTP status received. Full response body');
 
         $expectedIcal = TestUtil::getTestCalendarData();
 
@@ -586,7 +555,7 @@ END:VCALENDAR';
 </d:multistatus>
 XML;
 
-        $this->assertXmlStringEqualsXmlString($expected, $this->response->getBodyAsString());
+        $this->assertXmlStringEqualsXmlString($expected, $response->getBody()->getContents());
 
     }
 
@@ -607,13 +576,15 @@ XML;
             '<d:href>/calendars/user1/UUID-123467/UUID-2345</d:href>' .
             '</c:calendar-multiget>';
 
-        $request = new HTTP\Request('REPORT', '/calendars/user1', ['Depth' => '1']);
-        $request->setBody($body);
+        $request = new ServerRequest('REPORT', '/calendars/user1', ['Depth' => '1'], $body);
+        
 
-        $this->server->httpRequest = $request;
-        $this->server->exec();
 
-        $this->assertEquals(207, $this->response->status, 'Invalid HTTP status received. Full response body: ' . $this->response->body);
+
+        $response = $this->server->handle($request);
+        $responseBody = $response->getBody()->getContents();
+
+        $this->assertEquals(207, $response->getStatusCode(), 'Invalid HTTP status received. Full response body: ' . $responseBody);
 
         $expectedIcal = TestUtil::getTestCalendarData();
         $expectedIcal = \Sabre\VObject\Reader::read($expectedIcal);
@@ -639,7 +610,8 @@ XML;
 </d:multistatus>
 XML;
 
-        $this->assertXmlStringEqualsXmlString($expected, $this->response->getBodyAsString());
+
+        $this->assertXmlStringEqualsXmlString($expected, $responseBody);
 
     }
 
@@ -665,13 +637,13 @@ XML;
             '</c:filter>' .
             '</c:calendar-query>';
 
-        $request = new HTTP\Request('REPORT', '/calendars/user1/UUID-123467', ['Depth' => '1']);
-        $request->setBody($body);
+        $request = new ServerRequest('REPORT', '/calendars/user1/UUID-123467', ['Depth' => '1'], $body);
+        $response = $this->server->handle($request);
 
-        $this->server->httpRequest = $request;
-        $this->server->exec();
 
-        $this->assertEquals(207, $this->response->status, 'Received an unexpected status. Full response body: ' . $this->response->body);
+        $responseBody = $response->getBody()->getContents();
+
+        $this->assertEquals(207, $response->getStatusCode(), 'Received an unexpected status. Full response body: ' . $responseBody);
 
         $expectedIcal = TestUtil::getTestCalendarData();
         $expectedIcal = \Sabre\VObject\Reader::read($expectedIcal);
@@ -697,7 +669,7 @@ XML;
 </d:multistatus>
 XML;
 
-        $this->assertXmlStringEqualsXmlString($expected, $this->response->getBodyAsString());
+        $this->assertXmlStringEqualsXmlString($expected, $responseBody);
 
     }
 
@@ -723,17 +695,17 @@ XML;
             '</c:filter>' .
             '</c:calendar-query>';
 
-        $request = new HTTP\Request('REPORT', '/calendars/user1/UUID-123467', [
+        $request = new ServerRequest('REPORT', '/calendars/user1/UUID-123467', [
             'Depth'      => '0',
             'User-Agent' => 'MSFT-WP/8.10.14219 (gzip)',
-        ]);
+        ], $body);
+        $response = $this->server->handle($request);
 
-        $request->setBody($body);
 
-        $this->server->httpRequest = $request;
-        $this->server->exec();
 
-        $this->assertEquals(207, $this->response->status, 'Received an unexpected status. Full response body: ' . $this->response->body);
+        $responseBody = $response->getBody()->getContents();
+
+        $this->assertEquals(207, $response->getStatusCode(), 'Received an unexpected status. Full response body: ' . $responseBody);
 
         $expectedIcal = TestUtil::getTestCalendarData();
         $expectedIcal = \Sabre\VObject\Reader::read($expectedIcal);
@@ -759,7 +731,7 @@ XML;
 </d:multistatus>
 XML;
 
-        $this->assertXmlStringEqualsXmlString($expected, $this->response->getBodyAsString());
+        $this->assertXmlStringEqualsXmlString($expected, $responseBody);
 
     }
 
@@ -785,15 +757,15 @@ XML;
             '</c:filter>' .
             '</c:calendar-query>';
 
-        $request = new HTTP\Request('REPORT', '/calendars/user1/UUID-123467', [
+        $request = new ServerRequest('REPORT', '/calendars/user1/UUID-123467', [
             'Depth' => '0',
-        ]);
-        $request->setBody($body);
+        ], $body);
+        $response = $this->server->handle($request);
 
-        $this->server->httpRequest = $request;
-        $this->server->exec();
 
-        $this->assertEquals(400, $this->response->status, 'Received an unexpected status. Full response body: ' . $this->response->body);
+
+
+        $this->assertEquals(400, $response->getStatusCode(), 'Received an unexpected status. Full response body: ' . $response->getBody()->getContents());
 
     }
 
@@ -815,15 +787,14 @@ XML;
             '</c:filter>' .
             '</c:calendar-query>';
 
-        $request = new HTTP\Request('REPORT', '/calendars/user1/UUID-123467', [
+        $request = new ServerRequest('REPORT', '/calendars/user1/UUID-123467', [
             'Depth' => '1',
-        ]);
-        $request->setBody($body);
+        ], $body);
 
-        $this->server->httpRequest = $request;
-        $this->server->exec();
 
-        $this->assertEquals(207, $this->response->status, 'Received an unexpected status. Full response body: ' . $this->response->body);
+        $response = $this->server->handle($request);
+        $responseBody = $response->getBody()->getContents();
+        $this->assertEquals(207, $response->getStatusCode(), 'Received an unexpected status. Full response body: ' . $responseBody);
 
         $expected = <<<XML
 <?xml version="1.0"?>
@@ -840,7 +811,7 @@ XML;
 </d:multistatus>
 XML;
 
-        $this->assertXmlStringEqualsXmlString($expected, $this->response->getBodyAsString());
+        $this->assertXmlStringEqualsXmlString($expected, $responseBody);
 
     }
 
@@ -858,13 +829,13 @@ XML;
             '</d:prop>' .
             '</c:calendar-query>';
 
-        $request = new HTTP\Request('REPORT', '/calendars/user1/UUID-123467');
-        $request->setBody($body);
+        $request = new ServerRequest('REPORT', '/calendars/user1/UUID-123467', [], $body);
+        $response = $this->server->handle($request);
 
-        $this->server->httpRequest = $request;
-        $this->server->exec();
 
-        $this->assertEquals(400, $this->response->status, 'Received an unexpected status. Full response body: ' . $this->response->body);
+
+
+        $this->assertEquals(400, $response->getStatusCode(), 'Received an unexpected status. Full response body: ' . $response->getBody()->getContents());
 
     }
 
@@ -890,13 +861,12 @@ XML;
             '</c:filter>' .
             '</c:calendar-query>';
 
-        $request = new HTTP\Request('REPORT', '/calendars/user1/UUID-123467/UUID-2345', ['Depth' => '0']);
-        $request->setBody($body);
+        $request = new ServerRequest('REPORT', '/calendars/user1/UUID-123467/UUID-2345', ['Depth' => '0'], $body);
 
-        $this->server->httpRequest = $request;
-        $this->server->exec();
+        $response = $this->server->handle($request);
+        $responseBody = $response->getBody()->getContents();
 
-        $this->assertEquals(207, $this->response->status, 'Received an unexpected status. Full response body: ' . $this->response->body);
+        $this->assertEquals(207, $response->getStatusCode(), 'Received an unexpected status. Full response body: ' . $responseBody);
 
         $expectedIcal = TestUtil::getTestCalendarData();
         $expectedIcal = \Sabre\VObject\Reader::read($expectedIcal);
@@ -922,7 +892,7 @@ XML;
 </d:multistatus>
 XML;
 
-        $this->assertXmlStringEqualsXmlString($expected, $this->response->getBodyAsString());
+        $this->assertXmlStringEqualsXmlString($expected, $responseBody);
 
     }
 
@@ -945,13 +915,15 @@ XML;
             '</c:filter>' .
             '</c:calendar-query>';
 
-        $request = new HTTP\Request('REPORT', '/calendars/user1/UUID-123467/UUID-2345', ['Depth' => '0']);
-        $request->setBody($body);
+        $request = new ServerRequest('REPORT', '/calendars/user1/UUID-123467/UUID-2345', ['Depth' => '0'], $body);
 
-        $this->server->httpRequest = $request;
-        $this->server->exec();
 
-        $this->assertEquals(207, $this->response->status, 'Received an unexpected status. Full response body: ' . $this->response->body);
+
+
+        $response = $this->server->handle($request);
+        $responseBody = $response->getBody()->getContents();
+
+        $this->assertEquals(207, $response->getStatusCode(), 'Received an unexpected status. Full response body: ' . $responseBody);
 
         $expected = <<<XML
 <?xml version="1.0"?>
@@ -968,7 +940,7 @@ XML;
 </d:multistatus>
 XML;
 
-        $this->assertXmlStringEqualsXmlString($expected, $this->response->getBodyAsString());
+        $this->assertXmlStringEqualsXmlString($expected, $responseBody);
 
     }
 
@@ -999,13 +971,13 @@ XML;
             '<d:href>/calendars/user1/UUID-123467/UUID-2345</d:href>' .
             '</c:calendar-multiget>';
 
-        $request = new HTTP\Request('REPORT', '/calendars/user1', ['Depth' => '1']);
-        $request->setBody($body);
+        $request = new ServerRequest('REPORT', '/calendars/user1', ['Depth' => '1'], $body);
+        $response = $this->server->handle($request);
 
-        $this->server->httpRequest = $request;
-        $this->server->exec();
 
-        $this->assertEquals(400, $this->response->status, 'Invalid HTTP status received. Full response body: ' . $this->response->body);
+
+
+        $this->assertEquals(400, $response->getStatusCode(), 'Invalid HTTP status received. Full response body: ' . $response->getBody()->getContents());
 
     }
 
@@ -1026,13 +998,13 @@ XML;
             '<d:href>/calendars/user1/UUID-123467/UUID-2345</d:href>' .
             '</c:calendar-multiget>';
 
-        $request = new HTTP\Request('REPORT', '/calendars/user1', ['Depth' => '1']);
-        $request->setBody($body);
+        $request = new ServerRequest('REPORT', '/calendars/user1', ['Depth' => '1'], $body);
+        $response = $this->server->handle($request);
 
-        $this->server->httpRequest = $request;
-        $this->server->exec();
 
-        $this->assertEquals(400, $this->response->status, 'Invalid HTTP status received. Full response body: ' . $this->response->body);
+
+
+        $this->assertEquals(400, $response->getStatusCode(), 'Invalid HTTP status received. Full response body: ' . $response->getBody()->getContents());
 
     }
 
@@ -1053,13 +1025,13 @@ XML;
             '<d:href>/calendars/user1/UUID-123467/UUID-2345</d:href>' .
             '</c:calendar-multiget>';
 
-        $request = new HTTP\Request('REPORT', '/calendars/user1', ['Depth' => '1']);
-        $request->setBody($body);
+        $request = new ServerRequest('REPORT', '/calendars/user1', ['Depth' => '1'], $body);
 
-        $this->server->httpRequest = $request;
-        $this->server->exec();
+        $response = $this->server->handle($request);
 
-        $this->assertEquals(400, $this->response->status, 'Invalid HTTP status received. Full response body: ' . $this->response->body);
+
+
+        $this->assertEquals(400, $response->getStatusCode(), 'Invalid HTTP status received. Full response body: ' . $response->getBody()->getContents());
 
     }
 

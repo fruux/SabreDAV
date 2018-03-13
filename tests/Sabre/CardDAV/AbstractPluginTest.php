@@ -9,15 +9,15 @@ use Sabre\HTTP;
 abstract class AbstractPluginTest extends \PHPUnit_Framework_TestCase {
 
     /**
-     * @var Sabre\CardDAV\Plugin
+     * @var \Sabre\CardDAV\Plugin
      */
     protected $plugin;
     /**
-     * @var Sabre\DAV\Server
+     * @var DAV\Server
      */
     protected $server;
     /**
-     * @var Sabre\CardDAV\Backend\Mock;
+     * @var \Sabre\CardDAV\Backend\Mock;
      */
     protected $backend;
 
@@ -33,8 +33,8 @@ abstract class AbstractPluginTest extends \PHPUnit_Framework_TestCase {
 
         $this->plugin = new Plugin();
         $this->plugin->directories = ['directory'];
-        $this->server = new DAV\Server($tree);
-        $this->server->sapi = new HTTP\SapiMock();
+        $this->server = new DAV\Server($tree, null, null, function(){});
+
         $this->server->addPlugin($this->plugin);
         $this->server->debugExceptions = true;
 

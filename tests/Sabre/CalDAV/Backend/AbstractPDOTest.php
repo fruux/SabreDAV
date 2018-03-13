@@ -320,7 +320,7 @@ abstract class AbstractPDOTest extends \PHPUnit_Framework_TestCase {
     }
 
     /**
-     * @expectedException Sabre\DAV\Exception\BadRequest
+     * @expectedException \Sabre\DAV\Exception\BadRequest
      * @depends testCreateCalendarObject
      */
     function testCreateCalendarObjectNoComponent() {
@@ -1342,7 +1342,7 @@ abstract class AbstractPDOTest extends \PHPUnit_Framework_TestCase {
                 ],
             ])
         ];
-        $this->assertEquals($expected, $result, null, 0.0, 10, true); // Last argument is $canonicalize = true, which allows us to compare, ignoring the order, because it's different between MySQL and Sqlite.
+        $this->assertEquals($expected, $result, '', 0.0, 10, true); // Last argument is $canonicalize = true, which allows us to compare, ignoring the order, because it's different between MySQL and Sqlite.
 
     }
 

@@ -2,7 +2,7 @@
 
 namespace Sabre\CalDAV;
 
-use Sabre\HTTP;
+use GuzzleHttp\Psr7\ServerRequest;
 use Sabre\VObject;
 
 /**
@@ -58,14 +58,14 @@ END:VCALENDAR
 
     function testIssue203() {
 
-        $request = HTTP\Sapi::createFromServerArray([
-            'REQUEST_METHOD'    => 'REPORT',
-            'HTTP_CONTENT_TYPE' => 'application/xml',
-            'REQUEST_URI'       => '/calendars/user1/calendar1',
-            'HTTP_DEPTH'        => '1',
-        ]);
-
-        $request->setBody('<?xml version="1.0" encoding="utf-8" ?>
+        $request = new ServerRequest(
+            'REPORT',
+            '/calendars/user1/calendar1',
+            [
+                'Content-Type' => 'application/xml',
+                'Depth'        => '1',
+            ],
+            '<?xml version="1.0" encoding="utf-8" ?>
 <C:calendar-query xmlns:D="DAV:" xmlns:C="urn:ietf:params:xml:ns:caldav">
     <D:prop>
         <C:calendar-data>
@@ -84,11 +84,13 @@ END:VCALENDAR
 
         $response = $this->request($request);
 
+        $responseBody = $response->getBody()->getContents();
+
         // Everts super awesome xml parser.
         $body = substr(
-            $response->body,
-            $start = strpos($response->body, 'BEGIN:VCALENDAR'),
-            strpos($response->body, 'END:VCALENDAR') - $start + 13
+            $responseBody,
+            $start = strpos($responseBody, 'BEGIN:VCALENDAR'),
+            strpos($responseBody, 'END:VCALENDAR') - $start + 13
         );
         $body = str_replace('&#13;', '', $body);
 

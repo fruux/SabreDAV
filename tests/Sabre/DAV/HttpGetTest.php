@@ -2,8 +2,9 @@
 
 namespace Sabre\DAV;
 
+use GuzzleHttp\Psr7\ServerRequest;
+use GuzzleHttp\Psr7\Uri;
 use Sabre\DAVServerTest;
-use Sabre\HTTP;
 
 /**
  * Tests related to the GET request.
@@ -31,70 +32,73 @@ class HttpGetTest extends DAVServerTest {
 
     function testGet() {
 
-        $request = new HTTP\Request('GET', '/file1');
+        $request = new ServerRequest('GET', '/file1');
         $response = $this->request($request);
 
-        $this->assertEquals(200, $response->getStatus());
+        $this->assertEquals(200, $response->getStatusCode());
 
         // Removing Last-Modified because it keeps changing.
-        $response->removeHeader('Last-Modified');
+        $headers = $response->getHeaders();
+        unset($headers['Last-Modified']);
 
         $this->assertEquals(
             [
-                'X-Sabre-Version' => [Version::VERSION],
+
                 'Content-Type'    => ['application/octet-stream'],
                 'Content-Length'  => [3],
                 'ETag'            => ['"' . md5('foo') . '"'],
             ],
-            $response->getHeaders()
+            $headers
         );
 
-        $this->assertEquals('foo', $response->getBodyAsString());
+        $this->assertEquals('foo', $response->getBody()->getContents());
 
     }
 
     function testGetHttp10() {
 
-        $request = new HTTP\Request('GET', '/file1');
-        $request->setHttpVersion('1.0');
+        $request = (new ServerRequest('GET', '/file1'))
+            ->withProtocolVersion('1.0');
+
         $response = $this->request($request);
 
-        $this->assertEquals(200, $response->getStatus());
+        $this->assertEquals(200, $response->getStatusCode());
 
         // Removing Last-Modified because it keeps changing.
-        $response->removeHeader('Last-Modified');
+        $headers = $response->getHeaders();
+        unset($headers['Last-Modified']);
 
         $this->assertEquals(
             [
-                'X-Sabre-Version' => [Version::VERSION],
+
                 'Content-Type'    => ['application/octet-stream'],
                 'Content-Length'  => [3],
                 'ETag'            => ['"' . md5('foo') . '"'],
             ],
-            $response->getHeaders()
+            $headers
         );
 
-        $this->assertEquals('1.0', $response->getHttpVersion());
+        $this->assertEquals('1.0', $response->getProtocolVersion());
 
-        $this->assertEquals('foo', $response->getBodyAsString());
+        $this->assertEquals('foo', $response->getBody()->getContents());
 
     }
 
     function testGet404() {
 
-        $request = new HTTP\Request('GET', '/notfound');
+        $request = new ServerRequest('GET', '/notfound');
         $response = $this->request($request);
 
-        $this->assertEquals(404, $response->getStatus());
+        $this->assertEquals(404, $response->getStatusCode());
 
     }
 
     function testGet404_aswell() {
 
-        $request = new HTTP\Request('GET', '/file1/subfile');
+        $request = new ServerRequest('GET', '/file1/subfile');
         $response = $this->request($request);
 
-        $this->assertEquals(404, $response->getStatus());
+        $this->assertEquals(404, $response->getStatusCode());
 
     }
 
@@ -103,56 +107,59 @@ class HttpGetTest extends DAVServerTest {
      */
     function testGetDoubleSlash() {
 
-        $request = new HTTP\Request('GET', '//file1');
-        $response = $this->request($request);
+        $request = new ServerRequest('GET', 'http://localhost//file1');
+        $this->assertNotEmpty($request->getUri()->getPath());
 
-        $this->assertEquals(200, $response->getStatus());
+        $response = $this->request($request, 200);
+
 
         // Removing Last-Modified because it keeps changing.
-        $response->removeHeader('Last-Modified');
+        $headers = $response->getHeaders();
+        unset($headers['Last-Modified']);
 
         $this->assertEquals(
             [
-                'X-Sabre-Version' => [Version::VERSION],
+
                 'Content-Type'    => ['application/octet-stream'],
                 'Content-Length'  => [3],
                 'ETag'            => ['"' . md5('foo') . '"'],
             ],
-            $response->getHeaders()
+            $headers
         );
 
-        $this->assertEquals('foo', $response->getBodyAsString());
+        $this->assertEquals('foo', $response->getBody()->getContents());
 
     }
 
     function testGetCollection() {
 
-        $request = new HTTP\Request('GET', '/dir');
+        $request = new ServerRequest('GET', '/dir');
         $response = $this->request($request);
 
-        $this->assertEquals(501, $response->getStatus());
+        $this->assertEquals(501, $response->getStatusCode());
 
     }
 
     function testGetStreaming() {
 
-        $request = new HTTP\Request('GET', '/streaming');
+        $request = new ServerRequest('GET', '/streaming');
         $response = $this->request($request);
 
-        $this->assertEquals(200, $response->getStatus());
+        $this->assertEquals(200, $response->getStatusCode());
 
         // Removing Last-Modified because it keeps changing.
-        $response->removeHeader('Last-Modified');
+        $headers = $response->getHeaders();
+        unset($headers['Last-Modified']);
 
         $this->assertEquals(
             [
-                'X-Sabre-Version' => [Version::VERSION],
+
                 'Content-Type'    => ['application/octet-stream'],
             ],
-            $response->getHeaders()
+            $headers
         );
 
-        $this->assertEquals('stream', $response->getBodyAsString());
+        $this->assertEquals('stream',$response->getBody()->getContents());
 
     }
 }

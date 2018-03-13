@@ -3,7 +3,7 @@
 namespace Sabre\CalDAV;
 
 use Sabre\DAV;
-use Sabre\HTTP;
+use GuzzleHttp\Psr7\ServerRequest;
 
 class FreeBusyReportTest extends \PHPUnit_Framework_TestCase {
 
@@ -78,14 +78,14 @@ ics;
             '{' . Plugin::NS_CALDAV . '}calendar-timezone' => "BEGIN:VCALENDAR\r\nBEGIN:VTIMEZONE\r\nTZID:Europe/Berlin\r\nEND:VTIMEZONE\r\nEND:VCALENDAR",
         ]);
 
-        $this->server = new DAV\Server([$calendar]);
+        $this->server = new DAV\Server([$calendar], null, null, function(){});
 
-        $request = new HTTP\Request('GET', '/calendar');
-        $this->server->httpRequest = $request;
-        $this->server->httpResponse = new HTTP\ResponseMock();
+        $request = new ServerRequest('GET', '/calendar');
+
 
         $this->plugin = new Plugin();
         $this->server->addPlugin($this->plugin);
+        $this->server->handle($request);
 
     }
 
@@ -101,16 +101,18 @@ XML;
         $report = $this->server->xml->parse($reportXML, null, $rootElem);
         $this->plugin->report($rootElem, $report, null);
 
-        $this->assertEquals(200, $this->server->httpResponse->status);
-        $this->assertEquals('text/calendar', $this->server->httpResponse->getHeader('Content-Type'));
-        $this->assertTrue(strpos($this->server->httpResponse->body, 'BEGIN:VFREEBUSY') !== false);
-        $this->assertTrue(strpos($this->server->httpResponse->body, '20111005T120000Z/20111005T130000Z') !== false);
-        $this->assertTrue(strpos($this->server->httpResponse->body, '20111006T100000Z/20111006T110000Z') !== false);
+        $response = $this->server->httpResponse->getResponse();
+        $responseBody = $response->getBody()->getContents();
+        $this->assertEquals(200, $response->getStatusCode());
+        $this->assertEquals('text/calendar', $response->getHeaderLine('Content-Type'));
+        $this->assertTrue(strpos($responseBody, 'BEGIN:VFREEBUSY') !== false);
+        $this->assertTrue(strpos($responseBody, '20111005T120000Z/20111005T130000Z') !== false);
+        $this->assertTrue(strpos($responseBody, '20111006T100000Z/20111006T110000Z') !== false);
 
     }
 
     /**
-     * @expectedException Sabre\DAV\Exception\BadRequest
+     * @expectedException \Sabre\DAV\Exception\BadRequest
      */
     function testFreeBusyReportNoTimeRange() {
 
@@ -125,12 +127,14 @@ XML;
     }
 
     /**
-     * @expectedException Sabre\DAV\Exception\NotImplemented
+     * @expectedException \Sabre\DAV\Exception\NotImplemented
      */
     function testFreeBusyReportWrongNode() {
 
-        $request = new HTTP\Request('REPORT', '/');
-        $this->server->httpRequest = $request;
+        $request = new ServerRequest('REPORT', '/');
+
+        $this->server->handle($request);
+
 
         $reportXML = <<<XML
 <?xml version="1.0"?>
@@ -145,14 +149,13 @@ XML;
     }
 
     /**
-     * @expectedException Sabre\DAV\Exception
+     * @expectedException \Sabre\DAV\Exception
      */
     function testFreeBusyReportNoACLPlugin() {
 
-        $this->server = new DAV\Server();
-        $this->server->httpRequest = new HTTP\Request('REPORT', '/');
-        $this->plugin = new Plugin();
-        $this->server->addPlugin($this->plugin);
+        $server = new DAV\Server(null, null, null, function(){});
+        $plugin = new Plugin();
+        $server->addPlugin($plugin);
 
         $reportXML = <<<XML
 <?xml version="1.0"?>
@@ -161,8 +164,8 @@ XML;
 </c:free-busy-query>
 XML;
 
-        $report = $this->server->xml->parse($reportXML, null, $rootElem);
-        $this->plugin->report($rootElem, $report, null);
+        $report = $server->xml->parse($reportXML, null, $rootElem);
+        $plugin->report($rootElem, $report, null);
 
     }
 }

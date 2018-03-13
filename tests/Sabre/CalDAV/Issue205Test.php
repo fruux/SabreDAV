@@ -2,7 +2,7 @@
 
 namespace Sabre\CalDAV;
 
-use Sabre\HTTP;
+use GuzzleHttp\Psr7\ServerRequest;
 use Sabre\VObject;
 
 /**
@@ -51,14 +51,14 @@ END:VCALENDAR
 
     function testIssue205() {
 
-        $request = HTTP\Sapi::createFromServerArray([
-            'REQUEST_METHOD'    => 'REPORT',
-            'HTTP_CONTENT_TYPE' => 'application/xml',
-            'REQUEST_URI'       => '/calendars/user1/calendar1',
-            'HTTP_DEPTH'        => '1',
-        ]);
+        $request = new ServerRequest(
+             'REPORT',
 
-        $request->setBody('<?xml version="1.0" encoding="utf-8" ?>
+            '/calendars/user1/calendar1',
+            [
+                'Content-Type' => 'application/xml',
+            'Depth'        => '1',
+        ], '<?xml version="1.0" encoding="utf-8" ?>
 <C:calendar-query xmlns:D="DAV:" xmlns:C="urn:ietf:params:xml:ns:caldav">
     <D:prop>
         <C:calendar-data>
@@ -79,14 +79,15 @@ END:VCALENDAR
 
         $response = $this->request($request);
 
-        $this->assertFalse(strpos($response->body, '<s:exception>Exception</s:exception>'), 'Exception occurred: ' . $response->body);
-        $this->assertFalse(strpos($response->body, 'Unknown or bad format'), 'DateTime unknown format Exception: ' . $response->body);
+        $body = $response->getBody()->getContents();
+        $this->assertFalse(strpos($body, '<s:exception>Exception</s:exception>'), 'Exception occurred: ' . $body);
+        $this->assertFalse(strpos($body, 'Unknown or bad format'), 'DateTime unknown format Exception: ' . $body);
 
         // Everts super awesome xml parser.
         $body = substr(
-            $response->body,
-            $start = strpos($response->body, 'BEGIN:VCALENDAR'),
-            strpos($response->body, 'END:VCALENDAR') - $start + 13
+            $body,
+            $start = strpos($body, 'BEGIN:VCALENDAR'),
+            strpos($body, 'END:VCALENDAR') - $start + 13
         );
         $body = str_replace('&#13;', '', $body);
 

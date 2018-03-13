@@ -2,6 +2,7 @@
 
 namespace Sabre\DAV;
 
+use GuzzleHttp\Psr7\ServerRequest;
 use Sabre\DAVServerTest;
 use Sabre\HTTP;
 
@@ -30,22 +31,22 @@ class HttpMoveTest extends DAVServerTest {
 
     function testMoveToSelf() {
 
-        $request = new HTTP\Request('MOVE', '/file1', [
+        $request = new ServerRequest('MOVE', '/file1', [
             'Destination' => '/file1'
         ]);
         $response = $this->request($request);
-        $this->assertEquals(403, $response->getStatus());
+        $this->assertEquals(403, $response->getStatusCode());
         $this->assertEquals('content1', $this->tree->getChild('file1')->get());
 
     }
 
     function testMove() {
 
-        $request = new HTTP\Request('MOVE', '/file1', [
+        $request = new ServerRequest('MOVE', '/file1', [
             'Destination' => '/file3'
         ]);
         $response = $this->request($request);
-        $this->assertEquals(201, $response->getStatus(), print_r($response, true));
+        $this->assertEquals(201, $response->getStatusCode(), print_r($response, true));
         $this->assertEquals('content1', $this->tree->getChild('file3')->get());
         $this->assertFalse($this->tree->childExists('file1'));
 
@@ -53,11 +54,11 @@ class HttpMoveTest extends DAVServerTest {
 
     function testMoveToExisting() {
 
-        $request = new HTTP\Request('MOVE', '/file1', [
+        $request = new ServerRequest('MOVE', '/file1', [
             'Destination' => '/file2'
         ]);
         $response = $this->request($request);
-        $this->assertEquals(204, $response->getStatus(), print_r($response, true));
+        $this->assertEquals(204, $response->getStatusCode(), print_r($response, true));
         $this->assertEquals('content1', $this->tree->getChild('file2')->get());
         $this->assertFalse($this->tree->childExists('file1'));
 
@@ -65,12 +66,12 @@ class HttpMoveTest extends DAVServerTest {
 
     function testMoveToExistingOverwriteT() {
 
-        $request = new HTTP\Request('MOVE', '/file1', [
+        $request = new ServerRequest('MOVE', '/file1', [
             'Destination' => '/file2',
             'Overwrite'   => 'T',
         ]);
         $response = $this->request($request);
-        $this->assertEquals(204, $response->getStatus(), print_r($response, true));
+        $this->assertEquals(204, $response->getStatusCode(), print_r($response, true));
         $this->assertEquals('content1', $this->tree->getChild('file2')->get());
         $this->assertFalse($this->tree->childExists('file1'));
 
@@ -78,12 +79,12 @@ class HttpMoveTest extends DAVServerTest {
 
     function testMoveToExistingOverwriteF() {
 
-        $request = new HTTP\Request('MOVE', '/file1', [
+        $request = new ServerRequest('MOVE', '/file1', [
             'Destination' => '/file2',
             'Overwrite'   => 'F',
         ]);
         $response = $this->request($request);
-        $this->assertEquals(412, $response->getStatus(), print_r($response, true));
+        $this->assertEquals(412, $response->getStatusCode(), print_r($response, true));
         $this->assertEquals('content1', $this->tree->getChild('file1')->get());
         $this->assertEquals('content2', $this->tree->getChild('file2')->get());
         $this->assertTrue($this->tree->childExists('file1'));
@@ -105,11 +106,11 @@ class HttpMoveTest extends DAVServerTest {
             }
 
         });
-        $request = new HTTP\Request('MOVE', '/file1', [
+        $request = new ServerRequest('MOVE', '/file1', [
             'Destination' => '/file2'
         ]);
         $response = $this->request($request);
-        $this->assertEquals(403, $response->getStatus(), print_r($response, true));
+        $this->assertEquals(403, $response->getStatusCode(), print_r($response, true));
         $this->assertEquals('content1', $this->tree->getChild('file1')->get());
         $this->assertEquals('content2', $this->tree->getChild('file2')->get());
         $this->assertTrue($this->tree->childExists('file1'));

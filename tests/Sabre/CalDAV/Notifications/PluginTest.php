@@ -2,26 +2,26 @@
 
 namespace Sabre\CalDAV\Notifications;
 
+use GuzzleHttp\Psr7\ServerRequest;
 use Sabre\CalDAV;
 use Sabre\CalDAV\Xml\Notification\SystemStatus;
 use Sabre\DAV;
 use Sabre\DAVACL;
-use Sabre\HTTP;
-use Sabre\HTTP\Request;
+use Sabre\HTTP\Response;
 
 class PluginTest extends \PHPUnit_Framework_TestCase {
 
     /**
-     * @var Sabre\DAV\Server
+     * @var \Sabre\DAV\Server
      */
     protected $server;
     /**
-     * @var Sabre\CalDAV\Plugin
+     * @var \Sabre\CalDAV\Plugin
      */
     protected $plugin;
     protected $response;
     /**
-     * @var Sabre\CalDAV\Backend\PDO
+     * @var \Sabre\CalDAV\Backend\PDO
      */
     protected $caldavBackend;
 
@@ -36,8 +36,8 @@ class PluginTest extends \PHPUnit_Framework_TestCase {
         $root->addChild($calendars);
         $root->addChild($principals);
 
-        $this->server = new DAV\Server($root);
-        $this->server->sapi = new HTTP\SapiMock();
+        $this->server = new DAV\Server($root, null, null, function(){});
+
         $this->server->debugExceptions = true;
         $this->server->setBaseUri('/');
         $this->plugin = new Plugin();
@@ -57,10 +57,9 @@ class PluginTest extends \PHPUnit_Framework_TestCase {
         $this->server->addPlugin($authPlugin);
 
         // This forces a login
-        $authPlugin->beforeMethod(new HTTP\Request('GET', '/'), new HTTP\Response());
+        $authPlugin->beforeMethod(new DAV\Psr7RequestWrapper(new ServerRequest('GET', '/')), new Response());
 
-        $this->response = new HTTP\ResponseMock();
-        $this->server->httpResponse = $this->response;
+        $this->response = $this->server->httpResponse;
 
     }
 
@@ -77,8 +76,8 @@ class PluginTest extends \PHPUnit_Framework_TestCase {
 
     function testPrincipalProperties() {
 
-        $httpRequest = new Request('GET', '/', ['Host' => 'sabredav.org']);
-        $this->server->httpRequest = $httpRequest;
+        $httpRequest = new ServerRequest('GET', '/', ['Host' => 'sabredav.org']);
+        $response = $this->server->handle($httpRequest);
 
         $props = $this->server->getPropertiesForPath('principals/admin', [
             '{' . Plugin::NS_CALENDARSERVER . '}notification-URL',
@@ -122,22 +121,20 @@ class PluginTest extends \PHPUnit_Framework_TestCase {
             new SystemStatus('foo', '"1"')
         );
 
-        $server = new DAV\Server([$notification]);
+        $server = new DAV\Server([$notification], null, null, function(){});
         $caldav = new Plugin();
-
-        $server->httpRequest = new Request('GET', '/foo.xml');
-        $httpResponse = new HTTP\ResponseMock();
-        $server->httpResponse = $httpResponse;
-
         $server->addPlugin($caldav);
+        $request = new ServerRequest('GET', '/foo.xml');
 
-        $caldav->httpGet($server->httpRequest, $server->httpResponse);
 
-        $this->assertEquals(200, $httpResponse->status);
-        $this->assertEquals([
+
+        $response = $server->handle($request);
+
+        $this->assertEquals(200, $response->getStatusCode());
+        $this->assertArraySubset([
             'Content-Type' => ['application/xml'],
             'ETag'         => ['"1"'],
-        ], $httpResponse->getHeaders());
+        ], $response->getHeaders());
 
         $expected =
 '<?xml version="1.0" encoding="UTF-8"?>
@@ -146,21 +143,18 @@ class PluginTest extends \PHPUnit_Framework_TestCase {
 </cs:notification>
 ';
 
-        $this->assertXmlStringEqualsXmlString($expected, $httpResponse->getBodyAsString());
+        $this->assertXmlStringEqualsXmlString($expected, $response->getBody()->getContents());
 
     }
 
     function testGETPassthrough() {
 
-        $server = new DAV\Server();
+        $server = new DAV\Server(null, null, null, function(){});
         $caldav = new Plugin();
-
-        $httpResponse = new HTTP\ResponseMock();
-        $server->httpResponse = $httpResponse;
 
         $server->addPlugin($caldav);
 
-        $this->assertNull($caldav->httpGet(new HTTP\Request('GET', '/foozz'), $server->httpResponse));
+        $this->assertNull($caldav->httpGet(new DAV\Psr7RequestWrapper(new ServerRequest('GET', '/foozz')), $server->httpResponse));
 
     }
 

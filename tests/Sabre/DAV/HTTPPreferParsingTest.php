@@ -2,19 +2,19 @@
 
 namespace Sabre\DAV;
 
+use GuzzleHttp\Psr7\ServerRequest;
 use Sabre\HTTP;
 
 class HTTPPreferParsingTest extends \Sabre\DAVServerTest {
 
     function assertParseResult($input, $expected) {
 
-        $httpRequest = new HTTP\Request('GET', '/foo', [
+        $httpRequest = new ServerRequest('GET', '/foo', [
             'Prefer' => $input,
         ]);
 
-        $server = new Server();
-        $server->httpRequest = $httpRequest;
-
+        $server = new Server(null, null, null, function(){});
+        $server->handle($httpRequest);
         $this->assertEquals(
             $expected,
             $server->getHTTPPrefer()
@@ -80,12 +80,12 @@ class HTTPPreferParsingTest extends \Sabre\DAVServerTest {
 
     function testBrief() {
 
-        $httpRequest = new HTTP\Request('GET', '/foo', [
+        $httpRequest = new ServerRequest('GET', '/foo', [
             'Brief' => 't',
         ]);
 
-        $server = new Server();
-        $server->httpRequest = $httpRequest;
+        $server = new Server(null, null, null, function(){});
+        $server->handle($httpRequest);
 
         $this->assertEquals([
             'respond-async' => false,
@@ -103,10 +103,9 @@ class HTTPPreferParsingTest extends \Sabre\DAVServerTest {
      */
     function testpropfindMinimal() {
 
-        $request = new HTTP\Request('PROPFIND', '/', [
+        $request = new ServerRequest('PROPFIND', '/', [
             'Prefer' => 'return-minimal',
-        ]);
-        $request->setBody(<<<BLA
+        ], <<<BLA
 <?xml version="1.0"?>
 <d:propfind xmlns:d="DAV:">
     <d:prop>
@@ -119,9 +118,9 @@ BLA
 
         $response = $this->request($request);
 
-        $body = $response->getBodyAsString();
+        $body = $response->getBody()->getContents();
 
-        $this->assertEquals(207, $response->getStatus(), $body);
+        $this->assertEquals(207, $response->getStatusCode(), $body);
 
         $this->assertTrue(strpos($body, 'resourcetype') !== false, $body);
         $this->assertTrue(strpos($body, 'something') === false, $body);
@@ -130,8 +129,7 @@ BLA
 
     function testproppatchMinimal() {
 
-        $request = new HTTP\Request('PROPPATCH', '/', ['Prefer' => 'return-minimal']);
-        $request->setBody(<<<BLA
+        $request = new ServerRequest('PROPPATCH', '/', ['Prefer' => 'return-minimal'], <<<BLA
 <?xml version="1.0"?>
 <d:propertyupdate xmlns:d="DAV:">
     <d:set>
@@ -152,16 +150,14 @@ BLA
         });
 
         $response = $this->request($request);
-
-        $this->assertEquals('', $response->getBodyAsString(), 'Expected empty body: ' . $response->body);
-        $this->assertEquals(204, $response->status);
+        $this->assertEmpty($response->getBody()->getContents());
+        $this->assertEquals(204, $response->getStatusCode());
 
     }
 
     function testproppatchMinimalError() {
 
-        $request = new HTTP\Request('PROPPATCH', '/', ['Prefer' => 'return-minimal']);
-        $request->setBody(<<<BLA
+        $request = new ServerRequest('PROPPATCH', '/', ['Prefer' => 'return-minimal'], <<<BLA
 <?xml version="1.0"?>
 <d:propertyupdate xmlns:d="DAV:">
     <d:set>
@@ -175,11 +171,11 @@ BLA
 
         $response = $this->request($request);
 
-        $body = $response->getBodyAsString();
+        $responseBody = $response->getBody()->getContents();
 
-        $this->assertEquals(207, $response->status);
-        $this->assertTrue(strpos($body, 'something') !== false);
-        $this->assertTrue(strpos($body, '403 Forbidden') !== false, $body);
+        $this->assertEquals(207, $response->getStatusCode());
+        $this->assertTrue(strpos($responseBody, 'something') !== false);
+        $this->assertTrue(strpos($responseBody, '403 Forbidden') !== false, $responseBody);
 
     }
 }

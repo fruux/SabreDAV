@@ -2,6 +2,8 @@
 
 namespace Sabre\DAV;
 
+use GuzzleHttp\Psr7\ServerRequest;
+use Sabre\DAV\Exception\NotFound;
 use Sabre\HTTP;
 
 require_once 'Sabre/DAV/AbstractServer.php';
@@ -38,12 +40,9 @@ class ServerEventsTest extends AbstractServer {
 
         $this->server->on('afterResponse', [$mock, 'afterResponseCallback']);
 
-        $this->server->httpRequest = HTTP\Sapi::createFromServerArray([
-            'REQUEST_METHOD' => 'GET',
-            'REQUEST_URI'    => '/test.txt',
-        ]);
+        $this->server->handle(new ServerRequest('GET','/test.txt'));
 
-        $this->server->exec();
+
 
     }
 
@@ -53,15 +52,11 @@ class ServerEventsTest extends AbstractServer {
         $this->assertFalse($this->server->createFile('bla', 'body'));
 
         // Also testing put()
-        $req = HTTP\Sapi::createFromServerArray([
-            'REQUEST_METHOD' => 'PUT',
-            'REQUEST_URI'    => '/barbar',
-        ]);
+        $response = $this->server->handle(new ServerRequest('PUT','/barbar'));
+        $responseBody = $response->getBody()->getContents();
 
-        $this->server->httpRequest = $req;
-        $this->server->exec();
 
-        $this->assertEquals(500, $this->server->httpResponse->getStatus());
+        $this->assertEquals(500, $response->getStatusCode(), $responseBody);
 
     }
 
@@ -73,17 +68,13 @@ class ServerEventsTest extends AbstractServer {
 
     function testException() {
 
-        $this->server->on('exception', [$this, 'exceptionHandler']);
+        $exception = null;
+        $this->server->on('exception', function(Exception $e) use (&$exception) {
+            $exception = $e;
+        });
 
-        $req = HTTP\Sapi::createFromServerArray([
-            'REQUEST_METHOD' => 'GET',
-            'REQUEST_URI'    => '/not/exisitng',
-        ]);
-        $this->server->httpRequest = $req;
-        $this->server->exec();
-
-        $this->assertInstanceOf('Sabre\\DAV\\Exception\\NotFound', $this->exception);
-
+        $this->server->handle(new ServerRequest('GET', '/not/existing'));
+        $this->assertInstanceOf(NotFound::class, $exception);
     }
 
     function exceptionHandler(Exception $exception) {
@@ -111,11 +102,7 @@ class ServerEventsTest extends AbstractServer {
         });
 
         try {
-            $this->server->invokeMethod(
-                new HTTP\Request('BLABLA', '/'),
-                new HTTP\Response(),
-                false
-            );
+            $this->server->handle(new ServerRequest('BLABLA', '/'));
         } catch (Exception $e) {}
 
         // Fun fact, PHP 7.1 changes the order when sorting-by-callback.

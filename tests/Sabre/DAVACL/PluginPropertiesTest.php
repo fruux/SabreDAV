@@ -2,7 +2,10 @@
 
 namespace Sabre\DAVACL;
 
+use GuzzleHttp\Psr7\ServerRequest;
 use Sabre\DAV;
+use Sabre\DAV\Server;
+use Sabre\DAV\SimpleCollection;
 use Sabre\HTTP;
 
 class PluginPropertiesTest extends \PHPUnit_Framework_TestCase {
@@ -27,7 +30,7 @@ class PluginPropertiesTest extends \PHPUnit_Framework_TestCase {
             '{DAV:}principal-collection-set',
         ];
 
-        $server = new DAV\Server(new DAV\SimpleCollection('root'));
+        $server = new Server(new SimpleCollection('root'), null, null, function(){});
         $server->addPlugin($plugin);
 
         $result = $server->getPropertiesForPath('', $requestedProperties);
@@ -50,7 +53,7 @@ class PluginPropertiesTest extends \PHPUnit_Framework_TestCase {
 
     function testCurrentUserPrincipal() {
 
-        $fakeServer = new DAV\Server();
+        $fakeServer = new Server(null, null, null, function(){});
         $plugin = new DAV\Auth\Plugin(new DAV\Auth\Backend\Mock());
         $fakeServer->addPlugin($plugin);
         $plugin = new Plugin();
@@ -76,7 +79,8 @@ class PluginPropertiesTest extends \PHPUnit_Framework_TestCase {
         $this->assertEquals(Xml\Property\Principal::UNAUTHENTICATED, $result[200]['{DAV:}current-user-principal']->getType());
 
         // This will force the login
-        $fakeServer->emit('beforeMethod:PROPFIND', [$fakeServer->httpRequest, $fakeServer->httpResponse]);
+        $request = new DAV\Psr7RequestWrapper(new ServerRequest('GET', '/'));
+        $fakeServer->emit('beforeMethod:PROPFIND', [$request, $fakeServer->httpResponse]);
 
         $result = $fakeServer->getPropertiesForPath('', $requestedProperties);
         $result = $result[0];
@@ -99,7 +103,7 @@ class PluginPropertiesTest extends \PHPUnit_Framework_TestCase {
                 'privilege' => '{DAV:}all',
             ],
         ]);
-        $server = new DAV\Server();
+        $server = new Server(null, null, null, function(){});
         $server->addPlugin($plugin);
 
         $requestedProperties = [
@@ -113,7 +117,7 @@ class PluginPropertiesTest extends \PHPUnit_Framework_TestCase {
         $this->assertArrayHasKey('{DAV:}supported-privilege-set', $result[200]);
         $this->assertInstanceOf('Sabre\\DAVACL\\Xml\\Property\\SupportedPrivilegeSet', $result[200]['{DAV:}supported-privilege-set']);
 
-        $server = new DAV\Server();
+        $server = new Server(null, null, null, function(){});
 
         $prop = $result[200]['{DAV:}supported-privilege-set'];
         $result = $server->xml->write('{DAV:}root', $prop);
@@ -173,19 +177,19 @@ class PluginPropertiesTest extends \PHPUnit_Framework_TestCase {
                     'privilege' => '{DAV:}read',
                 ]
             ]),
-            new DAV\SimpleCollection('principals', [
+            new SimpleCollection('principals', [
                 $principal = new MockPrincipal('admin', 'principals/admin'),
             ]),
 
         ];
 
-        $server = new DAV\Server($nodes);
+        $server = new Server($nodes, null, null, function(){});
         $server->addPlugin($plugin);
         $authPlugin = new DAV\Auth\Plugin(new DAV\Auth\Backend\Mock());
         $server->addPlugin($authPlugin);
 
         // Force login
-        $authPlugin->beforeMethod(new HTTP\Request('GET', '/'), new HTTP\Response());
+        $authPlugin->beforeMethod(new DAV\Psr7RequestWrapper(new ServerRequest('GET', '/')), new HTTP\Response());
 
         $requestedProperties = [
             '{DAV:}acl',
@@ -212,19 +216,19 @@ class PluginPropertiesTest extends \PHPUnit_Framework_TestCase {
                     'privilege' => '{DAV:}read',
                 ]
             ]),
-            new DAV\SimpleCollection('principals', [
+            new SimpleCollection('principals', [
                 $principal = new MockPrincipal('admin', 'principals/admin'),
             ]),
 
         ];
 
-        $server = new DAV\Server($nodes);
+        $server = new Server($nodes, null, null, function(){});
         $server->addPlugin($plugin);
         $authPlugin = new DAV\Auth\Plugin(new DAV\Auth\Backend\Mock());
         $server->addPlugin($authPlugin);
 
         // Force login
-        $authPlugin->beforeMethod(new HTTP\Request('GET', '/'), new HTTP\Response());
+        $authPlugin->beforeMethod(new DAV\Psr7RequestWrapper(new ServerRequest('GET', '/')), new HTTP\Response());
 
         $requestedProperties = [
             '{DAV:}acl-restrictions',
@@ -242,12 +246,12 @@ class PluginPropertiesTest extends \PHPUnit_Framework_TestCase {
     function testAlternateUriSet() {
 
         $tree = [
-            new DAV\SimpleCollection('principals', [
+            new SimpleCollection('principals', [
                 $principal = new MockPrincipal('user', 'principals/user'),
             ])
         ];
 
-        $fakeServer = new DAV\Server($tree);
+        $fakeServer = new Server($tree, null, null, function(){});
         //$plugin = new DAV\Auth\Plugin(new DAV\Auth\MockBackend())
         //$fakeServer->addPlugin($plugin);
         $plugin = new Plugin();
@@ -277,12 +281,12 @@ class PluginPropertiesTest extends \PHPUnit_Framework_TestCase {
     function testPrincipalURL() {
 
         $tree = [
-            new DAV\SimpleCollection('principals', [
+            new SimpleCollection('principals', [
                 $principal = new MockPrincipal('user', 'principals/user'),
             ]),
         ];
 
-        $fakeServer = new DAV\Server($tree);
+        $fakeServer = new Server($tree, null, null, function(){});
         //$plugin = new DAV\Auth\Plugin(new DAV\Auth\MockBackend());
         //$fakeServer->addPlugin($plugin);
         $plugin = new Plugin();
@@ -313,12 +317,12 @@ class PluginPropertiesTest extends \PHPUnit_Framework_TestCase {
     function testGroupMemberSet() {
 
         $tree = [
-            new DAV\SimpleCollection('principals', [
+            new SimpleCollection('principals', [
                 $principal = new MockPrincipal('user', 'principals/user'),
             ]),
         ];
 
-        $fakeServer = new DAV\Server($tree);
+        $fakeServer = new Server($tree, null, null, function(){});
         //$plugin = new DAV\Auth\Plugin(new DAV\Auth\MockBackend());
         //$fakeServer->addPlugin($plugin);
         $plugin = new Plugin();
@@ -349,12 +353,12 @@ class PluginPropertiesTest extends \PHPUnit_Framework_TestCase {
     function testGroupMemberShip() {
 
         $tree = [
-            new DAV\SimpleCollection('principals', [
+            new SimpleCollection('principals', [
                 $principal = new MockPrincipal('user', 'principals/user'),
             ]),
         ];
 
-        $fakeServer = new DAV\Server($tree);
+        $fakeServer = new Server($tree, null, null, function(){});
         $plugin = new Plugin();
         $plugin->allowUnauthenticatedAccess = false;
         $fakeServer->addPlugin($plugin);
@@ -383,12 +387,12 @@ class PluginPropertiesTest extends \PHPUnit_Framework_TestCase {
     function testGetDisplayName() {
 
         $tree = [
-            new DAV\SimpleCollection('principals', [
+            new SimpleCollection('principals', [
                 $principal = new MockPrincipal('user', 'principals/user'),
             ]),
         ];
 
-        $fakeServer = new DAV\Server($tree);
+        $fakeServer = new Server($tree, null, null, function(){});
         $plugin = new Plugin();
         $plugin->allowUnauthenticatedAccess = false;
         $fakeServer->addPlugin($plugin);

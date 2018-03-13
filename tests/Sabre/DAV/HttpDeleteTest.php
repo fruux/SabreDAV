@@ -2,6 +2,7 @@
 
 namespace Sabre\DAV;
 
+use GuzzleHttp\Psr7\ServerRequest;
 use Sabre\DAVServerTest;
 use Sabre\HTTP;
 
@@ -36,19 +37,19 @@ class HttpDeleteTest extends DAVServerTest {
      */
     function testDelete() {
 
-        $request = new HTTP\Request('DELETE', '/file1');
+        $request = new ServerRequest('DELETE', '/file1');
 
         $response = $this->request($request);
 
         $this->assertEquals(
             204,
-            $response->getStatus(),
-            "Incorrect status code. Response body:  " . $response->getBodyAsString()
+            $response->getStatusCode(),
+            "Incorrect status code. Response body:  " . $response->getBody()->getContents()
         );
 
         $this->assertEquals(
             [
-                'X-Sabre-Version' => [Version::VERSION],
+
                 'Content-Length'  => ['0'],
             ],
             $response->getHeaders()
@@ -61,19 +62,19 @@ class HttpDeleteTest extends DAVServerTest {
      */
     function testDeleteDirectory() {
 
-        $request = new HTTP\Request('DELETE', '/dir');
+        $request = new ServerRequest('DELETE', '/dir');
 
         $response = $this->request($request);
 
         $this->assertEquals(
             204,
-            $response->getStatus(),
-            "Incorrect status code. Response body:  " . $response->getBodyAsString()
+            $response->getStatusCode(),
+            "Incorrect status code. Response body:  " . $response->getBody()->getContents()
         );
 
         $this->assertEquals(
             [
-                'X-Sabre-Version' => [Version::VERSION],
+
                 'Content-Length'  => ['0'],
             ],
             $response->getHeaders()
@@ -86,13 +87,13 @@ class HttpDeleteTest extends DAVServerTest {
      */
     function testDeleteNotFound() {
 
-        $request = new HTTP\Request('DELETE', '/file2');
+        $request = new ServerRequest('DELETE', '/file2');
         $response = $this->request($request);
 
         $this->assertEquals(
             404,
-            $response->getStatus(),
-            "Incorrect status code. Response body:  " . $response->getBodyAsString()
+            $response->getStatusCode(),
+            "Incorrect status code. Response body:  " . $response->getBody()->getContents()
         );
 
     }
@@ -102,7 +103,7 @@ class HttpDeleteTest extends DAVServerTest {
      */
     function testDeletePreconditions() {
 
-        $request = new HTTP\Request('DELETE', '/file1', [
+        $request = new ServerRequest('DELETE', '/file1', [
             'If-Match' => '"' . md5('foo') . '"',
         ]);
 
@@ -110,8 +111,8 @@ class HttpDeleteTest extends DAVServerTest {
 
         $this->assertEquals(
             204,
-            $response->getStatus(),
-            "Incorrect status code. Response body:  " . $response->getBodyAsString()
+            $response->getStatusCode(),
+            "Incorrect status code. Response body:  " . $response->getBody()->getContents()
         );
 
     }
@@ -121,7 +122,7 @@ class HttpDeleteTest extends DAVServerTest {
      */
     function testDeletePreconditionsFailed() {
 
-        $request = new HTTP\Request('DELETE', '/file1', [
+        $request = new ServerRequest('DELETE', '/file1', [
             'If-Match' => '"' . md5('bar') . '"',
         ]);
 
@@ -129,8 +130,8 @@ class HttpDeleteTest extends DAVServerTest {
 
         $this->assertEquals(
             412,
-            $response->getStatus(),
-            "Incorrect status code. Response body:  " . $response->getBodyAsString()
+            $response->getStatusCode(),
+            "Incorrect status code. Response body:  " . $response->getBody()->getContents()
         );
 
     }

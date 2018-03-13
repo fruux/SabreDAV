@@ -2,7 +2,7 @@
 
 namespace Sabre\CalDAV;
 
-use Sabre\HTTP;
+use GuzzleHttp\Psr7\ServerRequest;
 
 /**
  * This unittest is created to check for an endless loop in CalendarQueryValidator
@@ -65,14 +65,14 @@ END:VCALENDAR
 
     function testIssue220() {
 
-        $request = HTTP\Sapi::createFromServerArray([
-            'REQUEST_METHOD'    => 'REPORT',
-            'HTTP_CONTENT_TYPE' => 'application/xml',
-            'REQUEST_URI'       => '/calendars/user1/calendar1',
-            'HTTP_DEPTH'        => '1',
-        ]);
-
-        $request->setBody('<?xml version="1.0" encoding="utf-8" ?>
+        $request = new ServerRequest(
+             'REPORT',
+            '/calendars/user1/calendar1',
+            [
+                'Content-Type' => 'application/xml',
+                'Depth'        => '1',
+            ],
+             '<?xml version="1.0" encoding="utf-8" ?>
 <C:calendar-query xmlns:D="DAV:" xmlns:C="urn:ietf:params:xml:ns:caldav">
     <D:prop>
         <C:calendar-data/>
@@ -90,10 +90,10 @@ END:VCALENDAR
 </C:calendar-query>');
 
         $response = $this->request($request);
+        $responseBody = $response->getBody()->getContents();
+        $this->assertFalse(strpos($responseBody, '<s:exception>PHPUnit_Framework_Error_Warning</s:exception>'), 'Error Warning occurred: ' . $responseBody);
+        $this->assertFalse(strpos($responseBody, 'Invalid argument supplied for foreach()'), 'Invalid argument supplied for foreach(): ' . $responseBody);
 
-        $this->assertFalse(strpos($response->body, '<s:exception>PHPUnit_Framework_Error_Warning</s:exception>'), 'Error Warning occurred: ' . $response->body);
-        $this->assertFalse(strpos($response->body, 'Invalid argument supplied for foreach()'), 'Invalid argument supplied for foreach(): ' . $response->body);
-
-        $this->assertEquals(207, $response->status);
+        $this->assertEquals(207, $response->getStatusCode());
     }
 }

@@ -2,6 +2,7 @@
 
 namespace Sabre\DAV;
 
+use GuzzleHttp\Psr7\ServerRequest;
 use Sabre\DAVServerTest;
 use Sabre\HTTP;
 
@@ -34,77 +35,77 @@ class HttpCopyTest extends DAVServerTest {
     
     function testCopyFile() {
 
-        $request = new HTTP\Request('COPY', '/file1', [
+        $request = new ServerRequest('COPY', '/file1', [
             'Destination' => '/file5'
         ]);
         $response = $this->request($request);
-        $this->assertEquals(201, $response->getStatus());
+        $this->assertEquals(201, $response->getStatusCode());
         $this->assertEquals('content1', $this->tree->getChild('file5')->get());
 
     }
 
     function testCopyFileToSelf() {
 
-        $request = new HTTP\Request('COPY', '/file1', [
+        $request = new ServerRequest('COPY', '/file1', [
             'Destination' => '/file1'
         ]);
         $response = $this->request($request);
-        $this->assertEquals(403, $response->getStatus());
+        $this->assertEquals(403, $response->getStatusCode());
 
     }
 
     function testCopyFileToExisting() {
 
-        $request = new HTTP\Request('COPY', '/file1', [
+        $request = new ServerRequest('COPY', '/file1', [
             'Destination' => '/file2'
         ]);
         $response = $this->request($request);
-        $this->assertEquals(204, $response->getStatus());
+        $this->assertEquals(204, $response->getStatusCode());
         $this->assertEquals('content1', $this->tree->getChild('file2')->get());
 
     }
 
     function testCopyFileToExistingOverwriteT() {
 
-        $request = new HTTP\Request('COPY', '/file1', [
+        $request = new ServerRequest('COPY', '/file1', [
             'Destination' => '/file2',
             'Overwrite'   => 'T',
         ]);
         $response = $this->request($request);
-        $this->assertEquals(204, $response->getStatus());
+        $this->assertEquals(204, $response->getStatusCode());
         $this->assertEquals('content1', $this->tree->getChild('file2')->get());
 
     }
    
     function testCopyFileToExistingOverwriteBadValue() {
 
-        $request = new HTTP\Request('COPY', '/file1', [
+        $request = new ServerRequest('COPY', '/file1', [
             'Destination' => '/file2',
             'Overwrite'   => 'B',
         ]);
         $response = $this->request($request);
-        $this->assertEquals(400, $response->getStatus());
+        $this->assertEquals(400, $response->getStatusCode());
 
     }
 
     function testCopyFileNonExistantParent() {
 
-        $request = new HTTP\Request('COPY', '/file1', [
+        $request = new ServerRequest('COPY', '/file1', [
             'Destination' => '/notfound/file2',
         ]);
         $response = $this->request($request);
-        $this->assertEquals(409, $response->getStatus());
+        $this->assertEquals(409, $response->getStatusCode());
 
     }
 
     function testCopyFileToExistingOverwriteF() {
 
-        $request = new HTTP\Request('COPY', '/file1', [
+        $request = new ServerRequest('COPY', '/file1', [
             'Destination' => '/file2',
             'Overwrite'   => 'F',
         ]);
         $response = $this->request($request);
-        $this->assertEquals(412, $response->getStatus());
+        $this->assertEquals(412, $response->getStatusCode());
         $this->assertEquals('content2', $this->tree->getChild('file2')->get());
 
     }
@@ -118,7 +119,7 @@ class HttpCopyTest extends DAVServerTest {
             }
 
         });
-        $request = new HTTP\Request('COPY', '/file1', [
+        $request = new ServerRequest('COPY', '/file1', [
             'Destination' => '/file2',
             'Overwrite'   => 'T',
         ]);
@@ -131,67 +132,67 @@ class HttpCopyTest extends DAVServerTest {
 
     function testCopyColl() {
 
-        $request = new HTTP\Request('COPY', '/coll1', [
+        $request = new ServerRequest('COPY', '/coll1', [
             'Destination' => '/coll2'
         ]);
         $response = $this->request($request);
-        $this->assertEquals(201, $response->getStatus());
+        $this->assertEquals(201, $response->getStatusCode());
         $this->assertEquals('content3', $this->tree->getChild('coll2')->getChild('file3')->get());
 
     }
 
     function testCopyCollToSelf() {
 
-        $request = new HTTP\Request('COPY', '/coll1', [
+        $request = new ServerRequest('COPY', '/coll1', [
             'Destination' => '/coll1'
         ]);
         $response = $this->request($request);
-        $this->assertEquals(403, $response->getStatus());
+        $this->assertEquals(403, $response->getStatusCode());
 
     }
 
     function testCopyCollToExisting() {
 
-        $request = new HTTP\Request('COPY', '/coll1', [
+        $request = new ServerRequest('COPY', '/coll1', [
             'Destination' => '/file2'
         ]);
         $response = $this->request($request);
-        $this->assertEquals(204, $response->getStatus());
+        $this->assertEquals(204, $response->getStatusCode());
         $this->assertEquals('content3', $this->tree->getChild('file2')->getChild('file3')->get());
 
     }
 
     function testCopyCollToExistingOverwriteT() {
 
-        $request = new HTTP\Request('COPY', '/coll1', [
+        $request = new ServerRequest('COPY', '/coll1', [
             'Destination' => '/file2',
             'Overwrite'   => 'T',
         ]);
         $response = $this->request($request);
-        $this->assertEquals(204, $response->getStatus());
+        $this->assertEquals(204, $response->getStatusCode());
         $this->assertEquals('content3', $this->tree->getChild('file2')->getChild('file3')->get());
 
     }
 
     function testCopyCollToExistingOverwriteF() {
 
-        $request = new HTTP\Request('COPY', '/coll1', [
+        $request = new ServerRequest('COPY', '/coll1', [
             'Destination' => '/file2',
             'Overwrite'   => 'F',
         ]);
         $response = $this->request($request);
-        $this->assertEquals(412, $response->getStatus());
+        $this->assertEquals(412, $response->getStatusCode());
         $this->assertEquals('content2', $this->tree->getChild('file2')->get());
 
     }
 
     function testCopyCollIntoSubtree() {
 
-        $request = new HTTP\Request('COPY', '/coll1', [
+        $request = new ServerRequest('COPY', '/coll1', [
             'Destination' => '/coll1/subcol',
         ]);
         $response = $this->request($request);
-        $this->assertEquals(409, $response->getStatus());
+        $this->assertEquals(409, $response->getStatusCode());
 
     }
 

@@ -2,11 +2,13 @@
 
 namespace Sabre\DAV;
 
+use GuzzleHttp\Psr7\ServerRequest;
+
 class PSR3Test extends \PHPUnit_Framework_TestCase {
 
     function testIsLoggerAware() {
 
-        $server = new Server();
+        $server = new Server(null, null, null, function(){});
         $this->assertInstanceOf(
             'Psr\Log\LoggerAwareInterface',
             $server
@@ -16,7 +18,7 @@ class PSR3Test extends \PHPUnit_Framework_TestCase {
 
     function testGetNullLoggerByDefault() {
 
-        $server = new Server();
+        $server = new Server(null, null, null, function(){});
         $this->assertInstanceOf(
             'Psr\Log\NullLogger',
             $server->getLogger()
@@ -26,7 +28,7 @@ class PSR3Test extends \PHPUnit_Framework_TestCase {
 
     function testSetLogger() {
 
-        $server = new Server();
+        $server = new Server(null, null, null, function(){});
         $logger = new MockLogger();
 
         $server->setLogger($logger);
@@ -44,28 +46,22 @@ class PSR3Test extends \PHPUnit_Framework_TestCase {
      */
     function testLogException() {
 
-        $server = new Server();
+        $server = new Server(null, null, null, function(){});
         $logger = new MockLogger();
 
         $server->setLogger($logger);
 
         // Creating a fake environment to execute http requests in.
-        $request = new \Sabre\HTTP\Request(
+        $request = new ServerRequest(
             'GET',
             '/not-found',
             []
         );
-        $response = new \Sabre\HTTP\Response();
 
-        $server->httpRequest = $request;
-        $server->httpResponse = $response;
-        $server->sapi = new \Sabre\HTTP\SapiMock();
-
-        // Executing the request.
-        $server->exec();
+        $response = $server->handle($request);
 
         // The request should have triggered a 404 status.
-        $this->assertEquals(404, $response->getStatus());
+        $this->assertEquals(404, $response->getStatusCode());
 
         // We should also see this in the PSR-3 log.
         $this->assertEquals(1, count($logger->logs));

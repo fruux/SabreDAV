@@ -2,28 +2,29 @@
 
 namespace Sabre\DAVACL;
 
+use GuzzleHttp\Psr7\ServerRequest;
 use Sabre\DAV;
 use Sabre\HTTP;
 
 class ACLMethodTest extends \PHPUnit_Framework_TestCase {
 
     /**
-     * @expectedException Sabre\DAV\Exception\BadRequest
+     * @expectedException \Sabre\DAV\Exception\BadRequest
      */
     function testCallback() {
 
         $acl = new Plugin();
-        $server = new DAV\Server();
+        $server = new DAV\Server(null, null, null, function(){});
         $server->addPlugin(new DAV\Auth\Plugin());
         $server->addPlugin($acl);
 
-        $acl->httpAcl($server->httpRequest, $server->httpResponse);
+        $acl->httpACL(new DAV\Psr7RequestWrapper(new ServerRequest('GET', '/')), $server->httpResponse);
 
     }
 
     /**
      /**
-     * @expectedException Sabre\DAV\Exception\MethodNotAllowed
+     * @expectedException \Sabre\DAV\Exception\MethodNotAllowed
      */
     function testNotSupportedByNode() {
 
@@ -31,16 +32,16 @@ class ACLMethodTest extends \PHPUnit_Framework_TestCase {
             new DAV\SimpleCollection('test'),
         ];
         $acl = new Plugin();
-        $server = new DAV\Server($tree);
-        $server->httpRequest = new HTTP\Request('GET', '/');
+        $server = new DAV\Server($tree, null, null, function() {});
+
         $body = '<?xml version="1.0"?>
 <d:acl xmlns:d="DAV:">
 </d:acl>';
-        $server->httpRequest->setBody($body);
+        $request = new ServerRequest('GET', '/', [], $body);
         $server->addPlugin(new DAV\Auth\Plugin());
         $server->addPlugin($acl);
-
-        $acl->httpACL($server->httpRequest, $server->httpResponse);
+        $server->handle($request);
+        $acl->httpACL(new DAV\Psr7RequestWrapper($request), $server->httpResponse);
 
     }
 
@@ -50,23 +51,23 @@ class ACLMethodTest extends \PHPUnit_Framework_TestCase {
             new MockACLNode('test', []),
         ];
         $acl = new Plugin();
-        $server = new DAV\Server($tree);
-        $server->httpRequest = new HTTP\Request('GET', '/');
-        $server->httpRequest->setUrl('/test');
+        $server = new DAV\Server($tree, null, null, function() {});
+
 
         $body = '<?xml version="1.0"?>
 <d:acl xmlns:d="DAV:">
 </d:acl>';
-        $server->httpRequest->setBody($body);
+        $request = new ServerRequest('GET', '/test', [], $body);
+
         $server->addPlugin(new DAV\Auth\Plugin());
         $server->addPlugin($acl);
-
-        $this->assertFalse($acl->httpACL($server->httpRequest, $server->httpResponse));
+        $server->handle($request);
+        $this->assertFalse($acl->httpACL(new DAV\Psr7RequestWrapper($request), $server->httpResponse));
 
     }
 
     /**
-     * @expectedException Sabre\DAVACL\Exception\NotRecognizedPrincipal
+     * @expectedException \Sabre\DAVACL\Exception\NotRecognizedPrincipal
      */
     function testUnrecognizedPrincipal() {
 
@@ -74,8 +75,8 @@ class ACLMethodTest extends \PHPUnit_Framework_TestCase {
             new MockACLNode('test', []),
         ];
         $acl = new Plugin();
-        $server = new DAV\Server($tree);
-        $server->httpRequest = new HTTP\Request('ACL', '/test');
+        $server = new DAV\Server($tree, null, null, function() {});
+
         $body = '<?xml version="1.0"?>
 <d:acl xmlns:d="DAV:">
     <d:ace>
@@ -83,16 +84,16 @@ class ACLMethodTest extends \PHPUnit_Framework_TestCase {
         <d:principal><d:href>/principals/notfound</d:href></d:principal>
     </d:ace>
 </d:acl>';
-        $server->httpRequest->setBody($body);
+        $request = new ServerRequest('ACL', '/test', [], $body);
         $server->addPlugin(new DAV\Auth\Plugin());
         $server->addPlugin($acl);
-
-        $acl->httpACL($server->httpRequest, $server->httpResponse);
+        $server->handle($request);
+        $acl->httpACL(new DAV\Psr7RequestWrapper($request), $server->httpResponse);
 
     }
 
     /**
-     * @expectedException Sabre\DAVACL\Exception\NotRecognizedPrincipal
+     * @expectedException \Sabre\DAVACL\Exception\NotRecognizedPrincipal
      */
     function testUnrecognizedPrincipal2() {
 
@@ -103,8 +104,8 @@ class ACLMethodTest extends \PHPUnit_Framework_TestCase {
             ]),
         ];
         $acl = new Plugin();
-        $server = new DAV\Server($tree);
-        $server->httpRequest = new HTTP\Request('ACL', '/test');
+        $server = new DAV\Server($tree, null, null, function() {});
+
         $body = '<?xml version="1.0"?>
 <d:acl xmlns:d="DAV:">
     <d:ace>
@@ -112,16 +113,16 @@ class ACLMethodTest extends \PHPUnit_Framework_TestCase {
         <d:principal><d:href>/principals/notaprincipal</d:href></d:principal>
     </d:ace>
 </d:acl>';
-        $server->httpRequest->setBody($body);
+        $request = new ServerRequest('ACL', '/test', [], $body);
         $server->addPlugin(new DAV\Auth\Plugin());
         $server->addPlugin($acl);
-
-        $acl->httpACL($server->httpRequest, $server->httpResponse);
+        $server->handle($request);
+        $acl->httpACL(new DAV\Psr7RequestWrapper($request), $server->httpResponse);
 
     }
 
     /**
-     * @expectedException Sabre\DAVACL\Exception\NotSupportedPrivilege
+     * @expectedException \Sabre\DAVACL\Exception\NotSupportedPrivilege
      */
     function testUnknownPrivilege() {
 
@@ -129,8 +130,8 @@ class ACLMethodTest extends \PHPUnit_Framework_TestCase {
             new MockACLNode('test', []),
         ];
         $acl = new Plugin();
-        $server = new DAV\Server($tree);
-        $server->httpRequest = new HTTP\Request('ACL', '/test');
+        $server = new DAV\Server($tree, null, null, function() {});
+
         $body = '<?xml version="1.0"?>
 <d:acl xmlns:d="DAV:">
     <d:ace>
@@ -138,16 +139,16 @@ class ACLMethodTest extends \PHPUnit_Framework_TestCase {
         <d:principal><d:href>/principals/notfound</d:href></d:principal>
     </d:ace>
 </d:acl>';
-        $server->httpRequest->setBody($body);
+        $request = new ServerRequest('ACL', '/test', [], $body);
         $server->addPlugin(new DAV\Auth\Plugin());
         $server->addPlugin($acl);
-
-        $acl->httpACL($server->httpRequest, $server->httpResponse);
+        $server->handle($request);
+        $acl->httpACL(new DAV\Psr7RequestWrapper($request), $server->httpResponse);
 
     }
 
     /**
-     * @expectedException Sabre\DAVACL\Exception\NoAbstract
+     * @expectedException \Sabre\DAVACL\Exception\NoAbstract
      */
     function testAbstractPrivilege() {
 
@@ -155,11 +156,11 @@ class ACLMethodTest extends \PHPUnit_Framework_TestCase {
             new MockACLNode('test', []),
         ];
         $acl = new Plugin();
-        $server = new DAV\Server($tree);
+        $server = new DAV\Server($tree, null, null, function() {});
         $server->on('getSupportedPrivilegeSet', function($node, &$supportedPrivilegeSet) {
             $supportedPrivilegeSet['{DAV:}foo'] = ['abstract' => true];
         });
-        $server->httpRequest = new HTTP\Request('ACL', '/test');
+
         $body = '<?xml version="1.0"?>
 <d:acl xmlns:d="DAV:">
     <d:ace>
@@ -167,16 +168,16 @@ class ACLMethodTest extends \PHPUnit_Framework_TestCase {
         <d:principal><d:href>/principals/foo/</d:href></d:principal>
     </d:ace>
 </d:acl>';
-        $server->httpRequest->setBody($body);
+        $request = new ServerRequest('ACL', '/test', [], $body);
         $server->addPlugin(new DAV\Auth\Plugin());
         $server->addPlugin($acl);
-
-        $acl->httpACL($server->httpRequest, $server->httpResponse);
+        $server->handle($request);
+        $acl->httpACL(new DAV\Psr7RequestWrapper($request), $server->httpResponse);
 
     }
 
     /**
-     * @expectedException Sabre\DAVACL\Exception\AceConflict
+     * @expectedException \Sabre\DAVACL\Exception\AceConflict
      */
     function testUpdateProtectedPrivilege() {
 
@@ -192,8 +193,8 @@ class ACLMethodTest extends \PHPUnit_Framework_TestCase {
             new MockACLNode('test', $oldACL),
         ];
         $acl = new Plugin();
-        $server = new DAV\Server($tree);
-        $server->httpRequest = new HTTP\Request('ACL', '/test');
+        $server = new DAV\Server($tree, null, null, function() {});
+
         $body = '<?xml version="1.0"?>
 <d:acl xmlns:d="DAV:">
     <d:ace>
@@ -201,16 +202,16 @@ class ACLMethodTest extends \PHPUnit_Framework_TestCase {
         <d:principal><d:href>/principals/notfound</d:href></d:principal>
     </d:ace>
 </d:acl>';
-        $server->httpRequest->setBody($body);
+        $request = new ServerRequest('ACL', '/test', [], $body);
         $server->addPlugin(new DAV\Auth\Plugin());
         $server->addPlugin($acl);
-
-        $acl->httpACL($server->httpRequest, $server->httpResponse);
+        $server->handle($request);
+        $acl->httpACL(new DAV\Psr7RequestWrapper($request), $server->httpResponse);
 
     }
 
     /**
-     * @expectedException Sabre\DAVACL\Exception\AceConflict
+     * @expectedException \Sabre\DAVACL\Exception\AceConflict
      */
     function testUpdateProtectedPrivilege2() {
 
@@ -226,8 +227,8 @@ class ACLMethodTest extends \PHPUnit_Framework_TestCase {
             new MockACLNode('test', $oldACL),
         ];
         $acl = new Plugin();
-        $server = new DAV\Server($tree);
-        $server->httpRequest = new HTTP\Request('ACL', '/test');
+        $server = new DAV\Server($tree, null, null, function() {});
+
         $body = '<?xml version="1.0"?>
 <d:acl xmlns:d="DAV:">
     <d:ace>
@@ -235,16 +236,16 @@ class ACLMethodTest extends \PHPUnit_Framework_TestCase {
         <d:principal><d:href>/principals/foo</d:href></d:principal>
     </d:ace>
 </d:acl>';
-        $server->httpRequest->setBody($body);
+        $request = new ServerRequest('ACL', '/test', [], $body);
         $server->addPlugin(new DAV\Auth\Plugin());
         $server->addPlugin($acl);
-
-        $acl->httpACL($server->httpRequest, $server->httpResponse);
+        $server->handle($request);
+        $acl->httpACL(new DAV\Psr7RequestWrapper($request), $server->httpResponse);
 
     }
 
     /**
-     * @expectedException Sabre\DAVACL\Exception\AceConflict
+     * @expectedException \Sabre\DAVACL\Exception\AceConflict
      */
     function testUpdateProtectedPrivilege3() {
 
@@ -260,8 +261,8 @@ class ACLMethodTest extends \PHPUnit_Framework_TestCase {
             new MockACLNode('test', $oldACL),
         ];
         $acl = new Plugin();
-        $server = new DAV\Server($tree);
-        $server->httpRequest = new HTTP\Request('ACL', '/test');
+        $server = new DAV\Server($tree, null, null, function() {});
+
         $body = '<?xml version="1.0"?>
 <d:acl xmlns:d="DAV:">
     <d:ace>
@@ -269,11 +270,11 @@ class ACLMethodTest extends \PHPUnit_Framework_TestCase {
         <d:principal><d:href>/principals/notfound</d:href></d:principal>
     </d:ace>
 </d:acl>';
-        $server->httpRequest->setBody($body);
+        $request = new ServerRequest('ACL', '/test', [], $body);
         $server->addPlugin(new DAV\Auth\Plugin());
         $server->addPlugin($acl);
-
-        $acl->httpACL($server->httpRequest, $server->httpResponse);
+        $server->handle($request);
+        $acl->httpACL(new DAV\Psr7RequestWrapper($request), $server->httpResponse);
 
     }
 
@@ -299,8 +300,8 @@ class ACLMethodTest extends \PHPUnit_Framework_TestCase {
             ]),
         ];
         $acl = new Plugin();
-        $server = new DAV\Server($tree);
-        $server->httpRequest = new HTTP\Request('ACL', '/test');
+        $server = new DAV\Server($tree, null, null, function() {});
+
         $body = '<?xml version="1.0"?>
 <d:acl xmlns:d="DAV:">
     <d:ace>
@@ -313,12 +314,12 @@ class ACLMethodTest extends \PHPUnit_Framework_TestCase {
         <d:principal><d:href>/principals/baz</d:href></d:principal>
     </d:ace>
 </d:acl>';
-        $server->httpRequest->setBody($body);
+        $request = new ServerRequest('ACL', '/test', [], $body);
         $server->addPlugin(new DAV\Auth\Plugin());
         $server->addPlugin($acl);
 
 
-        $this->assertFalse($acl->httpAcl($server->httpRequest, $server->httpResponse));
+        $this->assertFalse($acl->httpAcl(new DAV\Psr7RequestWrapper($request), $server->httpResponse));
 
         $this->assertEquals([
             [

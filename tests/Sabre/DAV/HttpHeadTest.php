@@ -2,6 +2,7 @@
 
 namespace Sabre\DAV;
 
+use GuzzleHttp\Psr7\ServerRequest;
 use Sabre\DAVServerTest;
 use Sabre\HTTP;
 
@@ -31,25 +32,24 @@ class HttpHeadTest extends DAVServerTest {
 
     function testHEAD() {
 
-        $request = new HTTP\Request('HEAD', '//file1');
-        $response = $this->request($request);
+        $request = new ServerRequest('HEAD', '/file1');
+        $response = $this->request($request, 200);
 
-        $this->assertEquals(200, $response->getStatus());
-
+        $headers = $response->getHeaders();
         // Removing Last-Modified because it keeps changing.
-        $response->removeHeader('Last-Modified');
+        unset($headers['Last-Modified']);
 
         $this->assertEquals(
             [
-                'X-Sabre-Version' => [Version::VERSION],
+
                 'Content-Type'    => ['application/octet-stream'],
                 'Content-Length'  => [3],
                 'ETag'            => ['"' . md5('foo') . '"'],
-            ],
-            $response->getHeaders()
+            ], $headers,
+            print_r($headers, true)
         );
 
-        $this->assertEquals('', $response->getBodyAsString());
+        $this->assertEmpty($response->getBody()->getContents());
 
     }
 
@@ -60,10 +60,10 @@ class HttpHeadTest extends DAVServerTest {
      */
     function testHEADCollection() {
 
-        $request = new HTTP\Request('HEAD', '/dir');
+        $request = new ServerRequest('HEAD', '/dir');
         $response = $this->request($request);
 
-        $this->assertEquals(200, $response->getStatus());
+        $this->assertEquals(200, $response->getStatusCode());
 
     }
 
@@ -85,10 +85,10 @@ class HttpHeadTest extends DAVServerTest {
                 $authBackend
             )
         );
-        $request = new HTTP\Request('HEAD', '/file1', ['Authorization' => 'Basic ' . base64_encode('user:pass')]);
+        $request = new ServerRequest('HEAD', '/file1', ['Authorization' => 'Basic ' . base64_encode('user:pass')]);
         $response = $this->request($request);
 
-        $this->assertEquals(200, $response->getStatus());
+        $this->assertEquals(200, $response->getStatusCode());
 
         $this->assertEquals(1, $count, 'Auth was triggered twice :(');
 

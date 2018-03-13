@@ -2,6 +2,7 @@
 
 namespace Sabre\DAV;
 
+use GuzzleHttp\Psr7\ServerRequest;
 use Sabre\HTTP;
 
 require_once 'Sabre/TestUtil.php';
@@ -19,17 +20,15 @@ class Issue33Test extends \PHPUnit_Framework_TestCase {
         $bar = new SimpleCollection('bar');
         $root = new SimpleCollection('webdav', [$bar]);
 
-        $server = new Server($root);
+        $server = new Server($root, null, null, function() {});
         $server->setBaseUri('/webdav/');
 
-        $request = new HTTP\Request('GET', '/webdav/bar', [
+        $request = new ServerRequest('GET', '/webdav/bar', [
             'Destination' => 'http://dev2.tribalos.com/webdav/%C3%A0fo%C3%B3',
             'Overwrite'   => 'F',
         ]);
 
-        $server->httpRequest = $request;
-
-        $info = $server->getCopyAndMoveInfo($request);
+        $info = $server->getCopyAndMoveInfo(new Psr7RequestWrapper($request));
 
         $this->assertEquals('%C3%A0fo%C3%B3', urlencode($info['destination']));
         $this->assertFalse($info['destinationExists']);
@@ -67,14 +66,11 @@ class Issue33Test extends \PHPUnit_Framework_TestCase {
      */
     function testEverything() {
 
-        $request = new HTTP\Request('MOVE', '/webdav/bar', [
+        $request = new ServerRequest('MOVE', '/webdav/bar', [
             'Destination' => 'http://dev2.tribalos.com/webdav/%C3%A0fo%C3%B3',
             'Overwrite'   => 'F',
-        ]);
+        ], '');
 
-        $request->setBody('');
-
-        $response = new HTTP\ResponseMock();
 
         // Server setup
         mkdir(SABRE_TEMPDIR . '/issue33');
@@ -84,13 +80,10 @@ class Issue33Test extends \PHPUnit_Framework_TestCase {
 
         $tree = new Tree($dir);
 
-        $server = new Server($tree);
+        $server = new Server($tree, null, null, function(){});
         $server->setBaseUri('/webdav/');
-
-        $server->httpRequest = $request;
-        $server->httpResponse = $response;
-        $server->sapi = new HTTP\SapiMock();
-        $server->exec();
+        $response = $server->handle($request);
+        $this->assertEquals(201, $response->getStatusCode(), $response->getBody()->getContents());
 
         $this->assertTrue(file_exists(SABRE_TEMPDIR . '/issue33/' . urldecode('%C3%A0fo%C3%B3')));
 

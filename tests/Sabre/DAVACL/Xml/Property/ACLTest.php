@@ -18,7 +18,7 @@ class ACLTest extends \PHPUnit_Framework_TestCase {
     function testSerializeEmpty() {
 
         $acl = new Acl([]);
-        $xml = (new DAV\Server())->xml->write('{DAV:}root', $acl);
+        $xml = (new DAV\Server(null, null, null, function(){}))->xml->write('{DAV:}root', $acl);
 
         $expected = '<?xml version="1.0"?>
 <d:root xmlns:d="DAV:" xmlns:s="http://sabredav.org/ns" />';
@@ -42,7 +42,7 @@ class ACLTest extends \PHPUnit_Framework_TestCase {
         ];
 
         $acl = new Acl($privileges);
-        $xml = (new DAV\Server())->xml->write('{DAV:}root', $acl, '/');
+        $xml = (new DAV\Server(null, null, null, function(){}))->xml->write('{DAV:}root', $acl, '/');
 
         $expected = '<?xml version="1.0"?>
 <d:root xmlns:d="DAV:" xmlns:s="http://sabredav.org/ns">
@@ -92,7 +92,7 @@ class ACLTest extends \PHPUnit_Framework_TestCase {
         ];
 
         $acl = new Acl($privileges);
-        $xml = (new DAV\Server())->xml->write('{DAV:}root', $acl, '/');
+        $xml = (new DAV\Server(null, null, null, function(){}))->xml->write('{DAV:}root', $acl, '/');
 
         $expected = '<?xml version="1.0"?>
 <d:root xmlns:d="DAV:" xmlns:s="http://sabredav.org/ns">
@@ -188,7 +188,7 @@ class ACLTest extends \PHPUnit_Framework_TestCase {
     }
 
     /**
-     * @expectedException Sabre\DAV\Exception\BadRequest
+     * @expectedException \Sabre\DAV\Exception\BadRequest
      */
     function testUnserializeNoPrincipal() {
 
@@ -277,7 +277,7 @@ class ACLTest extends \PHPUnit_Framework_TestCase {
     }
 
     /**
-     * @expectedException Sabre\DAV\Exception\NotImplemented
+     * @expectedException \Sabre\DAV\Exception\NotImplemented
      */
     function testUnserializeDeny() {
 

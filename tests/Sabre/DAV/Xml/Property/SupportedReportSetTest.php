@@ -2,6 +2,7 @@
 
 namespace Sabre\DAV\Property;
 
+use GuzzleHttp\Psr7\ServerRequest;
 use Sabre\DAV;
 use Sabre\HTTP;
 
@@ -11,18 +12,10 @@ require_once 'Sabre/DAV/AbstractServer.php';
 class SupportedReportSetTest extends DAV\AbstractServer {
 
     function sendPROPFIND($body) {
+        $request = new ServerRequest('PROPFIND', '/', ['Depth' => '0'], $body);
 
-        $serverVars = [
-            'REQUEST_URI'    => '/',
-            'REQUEST_METHOD' => 'PROPFIND',
-            'HTTP_DEPTH'     => '0',
-        ];
+        return $this->server->handle($request);
 
-        $request = HTTP\Sapi::createFromServerArray($serverVars);
-        $request->setBody($body);
-
-        $this->server->httpRequest = ($request);
-        $this->server->exec();
 
     }
 
@@ -37,11 +30,13 @@ class SupportedReportSetTest extends DAV\AbstractServer {
   </d:prop>
 </d:propfind>';
 
-        $this->sendPROPFIND($xml);
+        $response = $this->sendPROPFIND($xml);
 
-        $this->assertEquals(207, $this->response->status, 'We expected a multi-status response. Full response body: ' . $this->response->body);
+        $responseBody = $response->getBody()->getContents();
+        $this->assertEquals(207, $response->getStatusCode(), 'We expected a multi-status response. Full response body: ' . $responseBody);
 
-        $body = preg_replace("/xmlns(:[A-Za-z0-9_])?=(\"|\')DAV:(\"|\')/", "xmlns\\1=\"urn:DAV\"", $this->response->body);
+
+        $body = preg_replace("/xmlns(:[A-Za-z0-9_])?=(\"|\')DAV:(\"|\')/", "xmlns\\1=\"urn:DAV\"", $responseBody);
         $xml = simplexml_load_string($body);
         $xml->registerXPathNamespace('d', 'urn:DAV');
 
@@ -78,11 +73,12 @@ class SupportedReportSetTest extends DAV\AbstractServer {
   </d:prop>
 </d:propfind>';
 
-        $this->sendPROPFIND($xml);
+        $response = $this->sendPROPFIND($xml);
+        $responseBody = $response->getBody()->getContents();
 
-        $this->assertEquals(207, $this->response->status, 'We expected a multi-status response. Full response body: ' . $this->response->body);
+        $this->assertEquals(207, $response->getStatusCode(), 'We expected a multi-status response. Full response body: ' . $responseBody);
 
-        $body = preg_replace("/xmlns(:[A-Za-z0-9_])?=(\"|\')DAV:(\"|\')/", "xmlns\\1=\"urn:DAV\"", $this->response->body);
+        $body = preg_replace("/xmlns(:[A-Za-z0-9_])?=(\"|\')DAV:(\"|\')/", "xmlns\\1=\"urn:DAV\"", $responseBody);
         $xml = simplexml_load_string($body);
         $xml->registerXPathNamespace('d', 'urn:DAV');
         $xml->registerXPathNamespace('x', 'http://www.rooftopsolutions.nl/testnamespace');
@@ -100,10 +96,10 @@ class SupportedReportSetTest extends DAV\AbstractServer {
         $this->assertEquals(2, count($data), 'We expected 2 \'d:report\' elements');
 
         $data = $xml->xpath('/d:multistatus/d:response/d:propstat/d:prop/d:supported-report-set/d:supported-report/d:report/x:myreport');
-        $this->assertEquals(1, count($data), 'We expected 1 \'x:myreport\' element. Full body: ' . $this->response->body);
+        $this->assertEquals(1, count($data), 'We expected 1 \'x:myreport\' element. Full body: ' . $responseBody);
 
         $data = $xml->xpath('/d:multistatus/d:response/d:propstat/d:prop/d:supported-report-set/d:supported-report/d:report/d:anotherreport');
-        $this->assertEquals(1, count($data), 'We expected 1 \'d:anotherreport\' element. Full body: ' . $this->response->body);
+        $this->assertEquals(1, count($data), 'We expected 1 \'d:anotherreport\' element. Full body: ' . $responseBody);
 
         $data = $xml->xpath('/d:multistatus/d:response/d:propstat/d:status');
         $this->assertEquals(1, count($data), 'We expected 1 \'d:status\' element');

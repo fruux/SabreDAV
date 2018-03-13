@@ -2,6 +2,7 @@
 
 namespace Sabre\CardDAV;
 
+use GuzzleHttp\Psr7\ServerRequest;
 use Sabre\HTTP;
 
 class VCFExportTest extends \Sabre\DAVServerTest {
@@ -50,14 +51,13 @@ class VCFExportTest extends \Sabre\DAVServerTest {
 
     function testExport() {
 
-        $request = HTTP\Sapi::createFromServerArray([
-            'REQUEST_URI'    => '/addressbooks/user1/book1?export',
-            'QUERY_STRING'   => 'export',
-            'REQUEST_METHOD' => 'GET',
-        ]);
-
+        $request = (new ServerRequest('GET', '/addressbooks/user1/book1?export'))
+            ->withQueryParams([
+                'export' => ''
+            ]);
         $response = $this->request($request);
-        $this->assertEquals(200, $response->status, $response->body);
+        $responseBody = $response->getBody()->getContents();
+        $this->assertEquals(200, $response->getStatusCode(), $responseBody);
 
         $expected = "BEGIN:VCARD
 FN:Person1
@@ -75,7 +75,7 @@ END:VCARD
         // We actually expected windows line endings
         $expected = str_replace("\n", "\r\n", $expected);
 
-        $this->assertEquals($expected, $response->body);
+        $this->assertEquals($expected, $responseBody);
 
     }
 
@@ -91,16 +91,16 @@ END:VCARD
 
     function testContentDisposition() {
 
-        $request = new HTTP\Request(
+        $request = (new ServerRequest(
             'GET',
             '/addressbooks/user1/book1?export'
-        );
+        ))->withQueryParams(['export' => '']);
 
         $response = $this->request($request, 200);
-        $this->assertEquals('text/directory', $response->getHeader('Content-Type'));
+        $this->assertEquals('text/directory', $response->getHeaderLine('Content-Type'));
         $this->assertEquals(
             'attachment; filename="book1-' . date('Y-m-d') . '.vcf"',
-            $response->getHeader('Content-Disposition')
+            $response->getHeaderLine('Content-Disposition')
         );
 
     }
@@ -118,16 +118,16 @@ END:VCARD
             "BEGIN:VCARD\r\nFN:Person1\r\nEND:VCARD\r\n"
         );
 
-        $request = new HTTP\Request(
+        $request = (new ServerRequest(
             'GET',
             '/addressbooks/user1/book-b_ad"(ch)ars?export'
-        );
+        ))->withQueryParams(['export' => '']);
 
         $response = $this->request($request, 200);
-        $this->assertEquals('text/directory', $response->getHeader('Content-Type'));
+        $this->assertEquals('text/directory', $response->getHeaderLine('Content-Type'));
         $this->assertEquals(
             'attachment; filename="book-b_adchars-' . date('Y-m-d') . '.vcf"',
-            $response->getHeader('Content-Disposition')
+            $response->getHeaderLine('Content-Disposition')
         );
 
     }

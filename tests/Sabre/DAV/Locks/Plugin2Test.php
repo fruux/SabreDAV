@@ -2,6 +2,7 @@
 
 namespace Sabre\DAV\Locks;
 
+use GuzzleHttp\Psr7\ServerRequest;
 use Sabre\HTTP\Request;
 
 class Plugin2Test extends \Sabre\DAVServerTest {
@@ -36,29 +37,29 @@ class Plugin2Test extends \Sabre\DAVServerTest {
     <D:locktype><D:write/></D:locktype>
 </D:lockinfo>';
 
-        $request = new Request(
+        $request = new ServerRequest(
             'LOCK',
             '/file.txt',
             [],
             $body
         );
         $response = $this->request($request);
-        $this->assertEquals(201, $response->getStatus(), $response->getBodyAsString());
+        $this->assertEquals(201, $response->getStatusCode(), $response->getBody()->getContents());
 
         $this->assertEquals(
             1,
             count($this->locksBackend->getLocks('file.txt', true))
         );
 
-        $request = new Request(
+        $request = new ServerRequest(
             'DELETE',
             '/file.txt',
             [
-                'If' => '(' . $response->getHeader('Lock-Token') . ')',
+                'If' => '(' . $response->getHeaderLine('Lock-Token') . ')',
             ]
         );
         $response = $this->request($request);
-        $this->assertEquals(204, $response->getStatus(), $response->getBodyAsString());
+        $this->assertEquals(204, $response->getStatusCode(), $response->getBody()->getContents());
 
         $this->assertEquals(
             0,

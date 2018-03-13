@@ -2,15 +2,17 @@
 
 namespace Sabre\CalDAV;
 
+use GuzzleHttp\Psr7\Response;
 use Sabre\DAV;
 use Sabre\DAVACL;
-use Sabre\HTTP;
+use GuzzleHttp\Psr7\ServerRequest;
 use Sabre\VObject;
 
 class ICSExportPluginTest extends \Sabre\DAVServerTest {
 
     protected $setupCalDAV = true;
 
+    /** @var ICSExportPlugin */
     protected $icsExportPlugin;
 
     function setUp() {
@@ -73,17 +75,20 @@ ICS
 
     function testBeforeMethod() {
 
-        $request = new HTTP\Request(
+        $request = (new ServerRequest(
             'GET',
             '/calendars/admin/UUID-123467?export'
-        );
+        ))->withQueryParams([
+            'export' => ''
+        ]);
 
-        $response = $this->request($request);
+        $old = DAV\Server::$exposeVersion;
+        DAV\Server::$exposeVersion = true;
+        $response = $this->request($request, 200);
+        DAV\Server::$exposeVersion = $old;
+        $this->assertEquals('text/calendar', $response->getHeaderLine('Content-Type'));
 
-        $this->assertEquals(200, $response->getStatus());
-        $this->assertEquals('text/calendar', $response->getHeader('Content-Type'));
-
-        $obj = VObject\Reader::read($response->body);
+        $obj = VObject\Reader::read($response->getBody()->getContents());
 
         $this->assertEquals(8, count($obj->children()));
         $this->assertEquals(1, count($obj->VERSION));
@@ -98,18 +103,16 @@ ICS
     }
     function testBeforeMethodNoVersion() {
 
-        $request = new HTTP\Request(
+        $request = (new ServerRequest(
             'GET',
             '/calendars/admin/UUID-123467?export'
-        );
-        DAV\Server::$exposeVersion = false;
+        ))->withQueryParams(['export' => '1']);
         $response = $this->request($request);
-        DAV\Server::$exposeVersion = true;
 
-        $this->assertEquals(200, $response->getStatus());
-        $this->assertEquals('text/calendar', $response->getHeader('Content-Type'));
+        $this->assertEquals(200, $response->getStatusCode());
+        $this->assertEquals('text/calendar', $response->getHeaderLine('Content-Type'));
 
-        $obj = VObject\Reader::read($response->body);
+        $obj = VObject\Reader::read($response->getBody()->getContents());
 
         $this->assertEquals(8, count($obj->children()));
         $this->assertEquals(1, count($obj->VERSION));
@@ -123,12 +126,12 @@ ICS
 
     function testBeforeMethodNoExport() {
 
-        $request = new HTTP\Request(
+        $request = new ServerRequest(
             'GET',
             '/calendars/admin/UUID-123467'
         );
-        $response = new HTTP\Response();
-        $this->assertNull($this->icsExportPlugin->httpGet($request, $response));
+        $response = new DAV\Psr7ResponseWrapper(function() { return new Response(500); });
+        $this->assertNull($this->icsExportPlugin->httpGet(new DAV\Psr7RequestWrapper($request), $response));
 
     }
 
@@ -140,7 +143,7 @@ ICS
             $aclPlugin
         );
 
-        $request = new HTTP\Request(
+        $request = new ServerRequest(
             'GET',
             '/calendars/admin/UUID-123467?export'
         );
@@ -162,20 +165,27 @@ ICS
 
         $this->autoLogin('admin');
 
-        $request = new HTTP\Request(
+        $request = (new ServerRequest(
             'GET',
             '/calendars/admin/UUID-123467?export'
-        );
+        ))->withQueryParams([
+            'export' => ''
+        ]);
 
+        $old = DAV\Server::$exposeVersion;
+        DAV\Server::$exposeVersion = true;
         $response = $this->request($request, 200);
-        $this->assertEquals('text/calendar', $response->getHeader('Content-Type'));
+        DAV\Server::$exposeVersion = $old;
 
-        $obj = VObject\Reader::read($response->body);
+        $this->assertEquals('text/calendar', $response->getHeaderLine('Content-Type'));
+
+        $obj = VObject\Reader::read($response->getBody()->getContents());
 
         $this->assertEquals(8, count($obj->children()));
         $this->assertEquals(1, count($obj->VERSION));
         $this->assertEquals(1, count($obj->CALSCALE));
         $this->assertEquals(1, count($obj->PRODID));
+
         $this->assertTrue(strpos((string)$obj->PRODID, DAV\Version::VERSION) !== false);
         $this->assertEquals(1, count($obj->VTIMEZONE));
         $this->assertEquals(1, count($obj->VEVENT));
@@ -184,33 +194,43 @@ ICS
 
     function testBadStartParam() {
 
-        $request = new HTTP\Request(
+        $request = (new ServerRequest(
             'GET',
             '/calendars/admin/UUID-123467?export&start=foo'
-        );
+        ))->withQueryParams([
+            'export' => '',
+            'start' => 'foo'
+        ]);
         $this->request($request, 400);
 
     }
 
     function testBadEndParam() {
 
-        $request = new HTTP\Request(
+        $request = (new ServerRequest(
             'GET',
             '/calendars/admin/UUID-123467?export&end=foo'
-        );
+        ))->withQueryParams([
+            'export' => '',
+            'end' => 'foo'
+        ]);
         $this->request($request, 400);
 
     }
 
     function testFilterStartEnd() {
 
-        $request = new HTTP\Request(
+        $request = (new ServerRequest(
             'GET',
             '/calendars/admin/UUID-123467?export&start=1&end=2'
-        );
+        ))->withQueryParams([
+            'export' => '',
+            'start' => '1',
+            'end' => '2'
+        ]);
         $response = $this->request($request, 200);
 
-        $obj = VObject\Reader::read($response->getBody());
+        $obj = VObject\Reader::read($response->getBody()->getContents());
 
         $this->assertNull($obj->VTIMEZONE);
         $this->assertNull($obj->VEVENT);
@@ -219,23 +239,32 @@ ICS
 
     function testExpandNoStart() {
 
-        $request = new HTTP\Request(
+        $request = (new ServerRequest(
             'GET',
             '/calendars/admin/UUID-123467?export&expand=1&end=2'
-        );
+        ))->withQueryParams([
+            'export' => '',
+            'expand' => '1',
+            'end' => '2'
+        ]);
         $this->request($request, 400);
 
     }
 
     function testExpand() {
 
-        $request = new HTTP\Request(
+        $request = (new ServerRequest(
             'GET',
             '/calendars/admin/UUID-123467?export&start=1&end=2000000000&expand=1'
-        );
+        ))->withQueryParams([
+            'export' => '',
+            'start' => '1',
+            'end' => '2000000000',
+            'expand' => '1'
+        ]);
         $response = $this->request($request, 200);
 
-        $obj = VObject\Reader::read($response->getBody());
+        $obj = VObject\Reader::read($response->getBody()->getContents());
 
         $this->assertNull($obj->VTIMEZONE);
         $this->assertEquals(1, count($obj->VEVENT));
@@ -244,52 +273,63 @@ ICS
 
     function testJCal() {
 
-        $request = new HTTP\Request(
+        $request = (new ServerRequest(
             'GET',
             '/calendars/admin/UUID-123467?export',
             ['Accept' => 'application/calendar+json']
-        );
+        ))->withQueryParams([
+            'export' => ''
+        ]);
 
         $response = $this->request($request, 200);
-        $this->assertEquals('application/calendar+json', $response->getHeader('Content-Type'));
+
+        $this->assertEquals('application/calendar+json', $response->getHeaderLine('Content-Type'));
 
     }
 
     function testJCalInUrl() {
 
-        $request = new HTTP\Request(
+        $request = (new ServerRequest(
             'GET',
             '/calendars/admin/UUID-123467?export&accept=jcal'
-        );
+        ))->withQueryParams([
+            'export' => '',
+            'accept' => 'jcal'
+        ]);
 
         $response = $this->request($request, 200);
-        $this->assertEquals('application/calendar+json', $response->getHeader('Content-Type'));
+        $this->assertEquals('application/calendar+json', $response->getHeaderLine('Content-Type'));
 
     }
 
     function testNegotiateDefault() {
 
-        $request = new HTTP\Request(
+        $request = (new ServerRequest(
             'GET',
             '/calendars/admin/UUID-123467?export',
             ['Accept' => 'text/plain']
-        );
+        ))->withQueryParams([
+            'export' => ''
+        ]);
 
         $response = $this->request($request, 200);
-        $this->assertEquals('text/calendar', $response->getHeader('Content-Type'));
+        $this->assertEquals('text/calendar', $response->getHeaderLine('Content-Type'));
 
     }
 
     function testFilterComponentVEVENT() {
 
-        $request = new HTTP\Request(
+        $request = (new ServerRequest(
             'GET',
             '/calendars/admin/UUID-123467?export&componentType=VEVENT'
-        );
+        ))->withQueryParams([
+            'export' => '',
+            'componentType' => 'VEVENT'
+        ]);
 
         $response = $this->request($request, 200);
 
-        $obj = VObject\Reader::read($response->body);
+        $obj = VObject\Reader::read($response->getBody()->getContents());
         $this->assertEquals(1, count($obj->VTIMEZONE));
         $this->assertEquals(1, count($obj->VEVENT));
         $this->assertNull($obj->VTODO);
@@ -298,14 +338,17 @@ ICS
 
     function testFilterComponentVTODO() {
 
-        $request = new HTTP\Request(
+        $request = (new ServerRequest(
             'GET',
             '/calendars/admin/UUID-123467?export&componentType=VTODO'
-        );
+        ))->withQueryParams([
+            'export' => '',
+            'componentType' => 'VTODO'
+        ]);
 
         $response = $this->request($request, 200);
 
-        $obj = VObject\Reader::read($response->body);
+        $obj = VObject\Reader::read($response->getBody()->getContents());
 
         $this->assertNull($obj->VTIMEZONE);
         $this->assertNull($obj->VEVENT);
@@ -315,10 +358,13 @@ ICS
 
     function testFilterComponentBadComponent() {
 
-        $request = new HTTP\Request(
+        $request = (new ServerRequest(
             'GET',
             '/calendars/admin/UUID-123467?export&componentType=VVOODOO'
-        );
+        ))->withQueryParams([
+            'export'=> '',
+            'componentType' => 'VVOODOO'
+        ]);
 
         $response = $this->request($request, 400);
 
@@ -326,33 +372,33 @@ ICS
 
     function testContentDisposition() {
 
-        $request = new HTTP\Request(
+        $request = (new ServerRequest(
             'GET',
             '/calendars/admin/UUID-123467?export'
-        );
+        ))->withQueryParams(['export' => '']);
 
         $response = $this->request($request, 200);
-        $this->assertEquals('text/calendar', $response->getHeader('Content-Type'));
+        $this->assertEquals('text/calendar', $response->getHeaderLine('Content-Type'));
         $this->assertEquals(
             'attachment; filename="UUID-123467-' . date('Y-m-d') . '.ics"',
-            $response->getHeader('Content-Disposition')
+            $response->getHeaderLine('Content-Disposition')
         );
 
     }
 
     function testContentDispositionJson() {
 
-        $request = new HTTP\Request(
+        $request = (new ServerRequest(
             'GET',
             '/calendars/admin/UUID-123467?export',
             ['Accept' => 'application/calendar+json']
-        );
+        ))->withQueryParams(['export' => '']);
 
         $response = $this->request($request, 200);
-        $this->assertEquals('application/calendar+json', $response->getHeader('Content-Type'));
+        $this->assertEquals('application/calendar+json', $response->getHeaderLine('Content-Type'));
         $this->assertEquals(
             'attachment; filename="UUID-123467-' . date('Y-m-d') . '.json"',
-            $response->getHeader('Content-Disposition')
+            $response->getHeaderLine('Content-Disposition')
         );
 
     }
@@ -368,17 +414,17 @@ ICS
             ]
         );
 
-        $request = new HTTP\Request(
+        $request = (new ServerRequest(
             'GET',
             '/calendars/admin/UUID-b_ad"(ch)ars?export',
             ['Accept' => 'application/calendar+json']
-        );
+        ))->withQueryParams(['export' => '']);
 
         $response = $this->request($request, 200);
-        $this->assertEquals('application/calendar+json', $response->getHeader('Content-Type'));
+        $this->assertEquals('application/calendar+json', $response->getHeaderLine('Content-Type'));
         $this->assertEquals(
             'attachment; filename="UUID-b_adchars-' . date('Y-m-d') . '.json"',
-            $response->getHeader('Content-Disposition')
+            $response->getHeaderLine('Content-Disposition')
         );
 
     }

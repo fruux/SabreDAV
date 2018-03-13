@@ -18,7 +18,7 @@ class FileTest extends \PHPUnit_Framework_TestCase {
     }
 
     /**
-     * @expectedException Sabre\DAV\Exception
+     * @expectedException \Sabre\DAV\Exception
      */
     function testLoadFileBroken() {
 
@@ -26,6 +26,17 @@ class FileTest extends \PHPUnit_Framework_TestCase {
         $file = new File(SABRE_TEMPDIR . '/backend');
 
     }
+
+    /**
+     * @expectedException \Sabre\DAV\Exception
+     */
+    function testLoadFileMissingColon() {
+
+        file_put_contents(SABRE_TEMPDIR . '/backend', 'user:hash');
+        $file = new File(SABRE_TEMPDIR . '/backend');
+
+    }
+
 
     function testLoadFile() {
 

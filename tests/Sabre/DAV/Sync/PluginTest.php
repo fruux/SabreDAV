@@ -2,6 +2,7 @@
 
 namespace Sabre\DAV\Sync;
 
+use GuzzleHttp\Psr7\ServerRequest;
 use Sabre\DAV;
 use Sabre\HTTP;
 
@@ -77,7 +78,7 @@ class PluginTest extends \Sabre\DAVServerTest {
         // Making a change
         $this->collection->addChange(['file1.txt'], [], []);
 
-        $request = new HTTP\Request('REPORT', '/coll/', ['Content-Type' => 'application/xml']);
+
 
         $body = <<<BLA
 <?xml version="1.0" encoding="utf-8" ?>
@@ -90,13 +91,14 @@ class PluginTest extends \Sabre\DAVServerTest {
 </D:sync-collection>
 BLA;
 
-        $request->setBody($body);
+        $request = new ServerRequest('REPORT', '/coll/', ['Content-Type' => 'application/xml'], $body);
 
         $response = $this->request($request);
+        $responseBody = $response->getBody()->getContents();
 
-        $this->assertEquals(207, $response->status, 'Full response body:' . $response->body);
+        $this->assertEquals(207, $response->getStatusCode(), 'Full response body:' . $responseBody);
 
-        $multiStatus = $this->server->xml->parse($response->getBodyAsString());
+        $multiStatus = $this->server->xml->parse($responseBody);
 
         // Checking the sync-token
         $this->assertEquals(
@@ -136,13 +138,9 @@ BLA;
         // Making another change
         $this->collection->addChange([], ['file2.txt'], ['file3.txt']);
 
-        $request = HTTP\Sapi::createFromServerArray([
-            'REQUEST_METHOD' => 'REPORT',
-            'REQUEST_URI'    => '/coll/',
-            'CONTENT_TYPE'   => 'application/xml',
-        ]);
-
-        $body = <<<BLA
+        $request = new ServerRequest('REPORT', '/coll/',
+            ['Content-Type' => 'application/xml'],
+            <<<BLA
 <?xml version="1.0" encoding="utf-8" ?>
 <D:sync-collection xmlns:D="DAV:">
      <D:sync-token>http://sabre.io/ns/sync/1</D:sync-token>
@@ -151,15 +149,15 @@ BLA;
         <D:getcontentlength/>
       </D:prop>
 </D:sync-collection>
-BLA;
+BLA
+        );
 
-        $request->setBody($body);
 
         $response = $this->request($request);
+        $responseBody =  $response->getBody()->getContents();
+        $this->assertEquals(207, $response->getStatusCode(), 'Full response body:' . $responseBody);
 
-        $this->assertEquals(207, $response->status, 'Full response body:' . $response->body);
-
-        $multiStatus = $this->server->xml->parse($response->getBodyAsString());
+        $multiStatus = $this->server->xml->parse($responseBody);
 
         // Checking the sync-token
         $this->assertEquals(
@@ -195,11 +193,7 @@ BLA;
         // Making another change
         $this->collection->addChange([], ['file2.txt'], ['file3.txt']);
 
-        $request = HTTP\Sapi::createFromServerArray([
-            'REQUEST_METHOD' => 'REPORT',
-            'REQUEST_URI'    => '/coll/',
-            'CONTENT_TYPE'   => 'application/xml',
-        ]);
+
 
         $body = <<<BLA
 <?xml version="1.0" encoding="utf-8" ?>
@@ -213,15 +207,16 @@ BLA;
 </D:sync-collection>
 BLA;
 
-        $request->setBody($body);
+        $request = new ServerRequest('REPORT', '/coll/',
+            ['Content-Type' => 'application/xml'],
+            $body
+        );
 
         $response = $this->request($request);
+        $responseBody = $response->getBody()->getContents();
+        $this->assertEquals(207, $response->getStatusCode(), 'Full response body:' . $responseBody);
 
-        $this->assertEquals(207, $response->status, 'Full response body:' . $response->body);
-
-        $multiStatus = $this->server->xml->parse(
-            $response->getBodyAsString()
-        );
+        $multiStatus = $this->server->xml->parse($responseBody);
 
         // Checking the sync-token
         $this->assertEquals(
@@ -247,12 +242,7 @@ BLA;
         // Making another change
         $this->collection->addChange([], ['file2.txt'], ['file3.txt']);
 
-        $request = HTTP\Sapi::createFromServerArray([
-            'REQUEST_METHOD' => 'REPORT',
-            'REQUEST_URI'    => '/coll/',
-            'CONTENT_TYPE'   => 'application/xml',
-            'HTTP_DEPTH'     => "1",
-        ]);
+
 
         $body = <<<BLA
 <?xml version="1.0" encoding="utf-8" ?>
@@ -264,15 +254,18 @@ BLA;
 </D:sync-collection>
 BLA;
 
-        $request->setBody($body);
+        $request = new ServerRequest('REPORT',
+            '/coll/',
+            ['Content-Type' => 'application/xml', 'Depth' => 1],
+            $body
+        );
 
         $response = $this->request($request);
+        $responseBody = $response->getBody()->getContents();
 
-        $this->assertEquals(207, $response->status, 'Full response body:' . $response->body);
+        $this->assertEquals(207, $response->getStatusCode(), 'Full response body:' . $responseBody);
 
-        $multiStatus = $this->server->xml->parse(
-            $response->getBodyAsString()
-        );
+        $multiStatus = $this->server->xml->parse($responseBody);
 
         // Checking the sync-token
         $this->assertEquals(
@@ -303,11 +296,7 @@ BLA;
 
     function testSyncNoSyncInfo() {
 
-        $request = HTTP\Sapi::createFromServerArray([
-            'REQUEST_METHOD' => 'REPORT',
-            'REQUEST_URI'    => '/coll/',
-            'CONTENT_TYPE'   => 'application/xml',
-        ]);
+
 
         $body = <<<BLA
 <?xml version="1.0" encoding="utf-8" ?>
@@ -320,24 +309,23 @@ BLA;
 </D:sync-collection>
 BLA;
 
-        $request->setBody($body);
+        $request = new ServerRequest(
+            'REPORT',
+            '/coll/',
+            ['Content-Type' => 'application/xml'],
+            $body
+        );
 
         $response = $this->request($request);
 
         // The default state has no sync-token, so this report should not yet
         // be supported.
-        $this->assertEquals(415, $response->status, 'Full response body:' . $response->body);
+        $this->assertEquals(415, $response->getStatusCode(), 'Full response body:' . $response->getBody()->getContents());
 
     }
 
     function testSyncNoSyncCollection() {
 
-        $request = HTTP\Sapi::createFromServerArray([
-            'REQUEST_METHOD' => 'REPORT',
-            'REQUEST_URI'    => '/normalcoll/',
-            'CONTENT_TYPE'   => 'application/xml',
-        ]);
-
         $body = <<<BLA
 <?xml version="1.0" encoding="utf-8" ?>
 <D:sync-collection xmlns:D="DAV:">
@@ -349,24 +337,25 @@ BLA;
 </D:sync-collection>
 BLA;
 
-        $request->setBody($body);
+        $request = new ServerRequest(
+            'REPORT',
+            '/normalcoll/',
+            ['Content-Type' => 'application/xml'],
+            $body
+        );
 
         $response = $this->request($request);
 
         // The default state has no sync-token, so this report should not yet
         // be supported.
-        $this->assertEquals(415, $response->status, 'Full response body:' . $response->body);
+        $this->assertEquals(415, $response->getStatusCode(), 'Full response body:' . $response->getBody()->getContents());
 
     }
 
     function testSyncInvalidToken() {
 
         $this->collection->addChange(['file1.txt'], [], []);
-        $request = HTTP\Sapi::createFromServerArray([
-            'REQUEST_METHOD' => 'REPORT',
-            'REQUEST_URI'    => '/coll/',
-            'CONTENT_TYPE'   => 'application/xml',
-        ]);
+
 
         $body = <<<BLA
 <?xml version="1.0" encoding="utf-8" ?>
@@ -379,23 +368,24 @@ BLA;
 </D:sync-collection>
 BLA;
 
-        $request->setBody($body);
+        $request = new ServerRequest(
+            'REPORT',
+            '/coll/',
+            ['Content-Type' => 'application/xml'],
+            $body
+        );
 
         $response = $this->request($request);
 
         // The default state has no sync-token, so this report should not yet
         // be supported.
-        $this->assertEquals(403, $response->status, 'Full response body:' . $response->body);
+        $this->assertEquals(403, $response->getStatusCode(), 'Full response body:' . $response->getBody()->getContents());
 
     }
     function testSyncInvalidTokenNoPrefix() {
 
         $this->collection->addChange(['file1.txt'], [], []);
-        $request = HTTP\Sapi::createFromServerArray([
-            'REQUEST_METHOD' => 'REPORT',
-            'REQUEST_URI'    => '/coll/',
-            'CONTENT_TYPE'   => 'application/xml',
-        ]);
+
 
         $body = <<<BLA
 <?xml version="1.0" encoding="utf-8" ?>
@@ -408,23 +398,24 @@ BLA;
 </D:sync-collection>
 BLA;
 
-        $request->setBody($body);
+        $request = new ServerRequest(
+            'REPORT',
+            '/coll/',
+            ['Content-Type' => 'application/xml'],
+            $body
+        );
 
         $response = $this->request($request);
 
         // The default state has no sync-token, so this report should not yet
         // be supported.
-        $this->assertEquals(403, $response->status, 'Full response body:' . $response->body);
+        $this->assertEquals(403, $response->getStatusCode(), 'Full response body:' . $response->getBody()->getContents());
 
     }
 
     function testSyncNoSyncToken() {
 
-        $request = HTTP\Sapi::createFromServerArray([
-            'REQUEST_METHOD' => 'REPORT',
-            'REQUEST_URI'    => '/coll/',
-            'CONTENT_TYPE'   => 'application/xml',
-        ]);
+
 
         $body = <<<BLA
 <?xml version="1.0" encoding="utf-8" ?>
@@ -436,24 +427,25 @@ BLA;
 </D:sync-collection>
 BLA;
 
-        $request->setBody($body);
+        $request = new ServerRequest(
+            'REPORT',
+            '/coll/',
+            ['Content-Type' => 'application/xml'],
+            $body
+        );
 
         $response = $this->request($request);
 
         // The default state has no sync-token, so this report should not yet
         // be supported.
-        $this->assertEquals(400, $response->status, 'Full response body:' . $response->body);
+        $this->assertEquals(400, $response->getStatusCode(), 'Full response body:' . $response->getBody()->getContents());
 
     }
 
     function testSyncNoProp() {
 
         $this->collection->addChange(['file1.txt'], [], []);
-        $request = HTTP\Sapi::createFromServerArray([
-            'REQUEST_METHOD' => 'REPORT',
-            'REQUEST_URI'    => '/coll/',
-            'CONTENT_TYPE'   => 'application/xml',
-        ]);
+
 
         $body = <<<BLA
 <?xml version="1.0" encoding="utf-8" ?>
@@ -463,61 +455,50 @@ BLA;
 </D:sync-collection>
 BLA;
 
-        $request->setBody($body);
+        $request = new ServerRequest(
+            'REPORT',
+            '/coll/',
+            ['Content-Type' => 'application/xml'],
+            $body
+        );
 
         $response = $this->request($request);
 
         // The default state has no sync-token, so this report should not yet
         // be supported.
-        $this->assertEquals(400, $response->status, 'Full response body:' . $response->body);
+        $this->assertEquals(400, $response->getStatusCode(), 'Full response body:' . $response->getBody()->getContents());
 
     }
 
     function testIfConditions() {
 
         $this->collection->addChange(['file1.txt'], [], []);
-        $request = HTTP\Sapi::createFromServerArray([
-            'REQUEST_METHOD' => 'DELETE',
-            'REQUEST_URI'    => '/coll/file1.txt',
-            'HTTP_IF'        => '</coll> (<http://sabre.io/ns/sync/1>)',
-        ]);
-        $response = $this->request($request);
-
-        // If a 403 is thrown this works correctly. The file in questions
-        // doesn't allow itself to be deleted.
-        // If the If conditions failed, it would have been a 412 instead.
-        $this->assertEquals(403, $response->status);
-
+        $request = new ServerRequest(
+            'DELETE',
+            '/coll/file1.txt',
+            ['If' => '</coll> (<http://sabre.io/ns/sync/1>)']);
+        $this->request($request, 403);
     }
 
     function testIfConditionsNot() {
 
         $this->collection->addChange(['file1.txt'], [], []);
-        $request = HTTP\Sapi::createFromServerArray([
-            'REQUEST_METHOD' => 'DELETE',
-            'REQUEST_URI'    => '/coll/file1.txt',
-            'HTTP_IF'        => '</coll> (Not <http://sabre.io/ns/sync/2>)',
+        $request = new ServerRequest(
+            'DELETE',
+            '/coll/file1.txt',
+            ['If'        => '</coll> (Not <http://sabre.io/ns/sync/2>)'
         ]);
-        $response = $this->request($request);
-
-        // If a 403 is thrown this works correctly. The file in questions
-        // doesn't allow itself to be deleted.
-        // If the If conditions failed, it would have been a 412 instead.
-        $this->assertEquals(403, $response->status);
-
+        $this->request($request, 403);
     }
 
     function testIfConditionsNoSyncToken() {
 
         $this->collection->addChange(['file1.txt'], [], []);
-        $request = HTTP\Sapi::createFromServerArray([
-            'REQUEST_METHOD' => 'DELETE',
-            'REQUEST_URI'    => '/coll/file1.txt',
-            'HTTP_IF'        => '</coll> (<opaquelocktoken:foo>)',
+        $request = new ServerRequest(
+            'DELETE',
+            '/coll/file1.txt',
+            ['If'=> '</coll> (<opaquelocktoken:foo>)'
         ]);
-        $response = $this->request($request);
-
-        $this->assertEquals(412, $response->status);
-
+        $this->request($request, 412);
     }
 }

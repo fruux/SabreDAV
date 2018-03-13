@@ -2,7 +2,7 @@
 
 namespace Sabre\CalDAV;
 
-use Sabre\HTTP;
+use GuzzleHttp\Psr7\ServerRequest;
 use Sabre\VObject;
 
 /**
@@ -69,12 +69,10 @@ END:VCALENDAR
 
     function testExpandCalendarQuery() {
 
-        $request = new HTTP\Request('REPORT', '/calendars/user1/calendar1', [
+        $request = new ServerRequest('REPORT', '/calendars/user1/calendar1', [
             'Depth'        => 1,
             'Content-Type' => 'application/xml',
-        ]);
-
-        $request->setBody('<?xml version="1.0" encoding="utf-8" ?>
+        ],'<?xml version="1.0" encoding="utf-8" ?>
 <C:calendar-query xmlns:D="DAV:" xmlns:C="urn:ietf:params:xml:ns:caldav">
     <D:prop>
         <C:calendar-data>
@@ -92,12 +90,12 @@ END:VCALENDAR
 </C:calendar-query>');
 
         $response = $this->request($request);
-
+        $responseBody = $response->getBody()->getContents();
         // Everts super awesome xml parser.
         $body = substr(
-            $response->body,
-            $start = strpos($response->body, 'BEGIN:VCALENDAR'),
-            strpos($response->body, 'END:VCALENDAR') - $start + 13
+            $responseBody,
+            $start = strpos($responseBody, 'BEGIN:VCALENDAR'),
+            strpos($responseBody, 'END:VCALENDAR') - $start + 13
         );
         $body = str_replace('&#13;', '', $body);
 
@@ -105,9 +103,9 @@ END:VCALENDAR
 
         // check if DTSTARTs and DTENDs are correct
         foreach ($vObject->VEVENT as $vevent) {
-            /** @var $vevent Sabre\VObject\Component\VEvent */
+            /** @var $vevent VObject\Component\VEvent */
             foreach ($vevent->children() as $child) {
-                /** @var $child Sabre\VObject\Property */
+                /** @var $child VObject\Property */
                 if ($child->name == 'DTSTART') {
                     // DTSTART should be the UTC equivalent of given floating time
                     $this->assertEquals('20141108T043000Z', $child->getValue());
@@ -121,12 +119,10 @@ END:VCALENDAR
 
     function testExpandMultiGet() {
 
-        $request = new HTTP\Request('REPORT', '/calendars/user1/calendar1', [
+        $request = new ServerRequest('REPORT', '/calendars/user1/calendar1', [
             'Depth'        => 1,
             'Content-Type' => 'application/xml',
-        ]);
-
-        $request->setBody('<?xml version="1.0" encoding="utf-8" ?>
+        ],'<?xml version="1.0" encoding="utf-8" ?>
 <C:calendar-multiget xmlns:D="DAV:" xmlns:C="urn:ietf:params:xml:ns:caldav">
     <D:prop>
         <C:calendar-data>
@@ -139,13 +135,14 @@ END:VCALENDAR
 
         $response = $this->request($request);
 
-        $this->assertEquals(207, $response->getStatus());
+        $this->assertEquals(207, $response->getStatusCode());
 
+        $responseBody = $response->getBody()->getContents();
         // Everts super awesome xml parser.
         $body = substr(
-            $response->body,
-            $start = strpos($response->body, 'BEGIN:VCALENDAR'),
-            strpos($response->body, 'END:VCALENDAR') - $start + 13
+            $responseBody,
+            $start = strpos($responseBody, 'BEGIN:VCALENDAR'),
+            strpos($responseBody, 'END:VCALENDAR') - $start + 13
         );
         $body = str_replace('&#13;', '', $body);
 
@@ -169,20 +166,24 @@ END:VCALENDAR
 
     function testExpandExport() {
 
-        $request = new HTTP\Request('GET', '/calendars/user1/calendar1?export&start=1&end=2000000000&expand=1', [
+        $request = (new ServerRequest('GET', '/calendars/user1/calendar1?export&start=1&end=2000000000&expand=1', [
             'Depth'        => 1,
             'Content-Type' => 'application/xml',
+        ]))->withQueryParams([
+            'export' => '',
+            'start' => '1',
+            'end' => '2000000000',
+            'expand' => '1'
         ]);
 
-        $response = $this->request($request);
+        $response = $this->request($request, 200);
 
-        $this->assertEquals(200, $response->getStatus());
-
+        $responseBody = $response->getBody()->getContents();
         // Everts super awesome xml parser.
         $body = substr(
-            $response->body,
-            $start = strpos($response->body, 'BEGIN:VCALENDAR'),
-            strpos($response->body, 'END:VCALENDAR') - $start + 13
+            $responseBody,
+            $start = strpos($responseBody, 'BEGIN:VCALENDAR'),
+            strpos($responseBody, 'END:VCALENDAR') - $start + 13
         );
         $body = str_replace('&#13;', '', $body);
 
@@ -190,9 +191,9 @@ END:VCALENDAR
 
         // check if DTSTARTs and DTENDs are correct
         foreach ($vObject->VEVENT as $vevent) {
-            /** @var $vevent Sabre\VObject\Component\VEvent */
+            /** @var $vevent VObject\Component\VEvent */
             foreach ($vevent->children() as $child) {
-                /** @var $child Sabre\VObject\Property */
+                /** @var $child VObject\Property */
                 if ($child->name == 'DTSTART') {
                     // DTSTART should be the UTC equivalent of given floating time
                     $this->assertEquals('20141108T043000Z', $child->getValue());

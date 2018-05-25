@@ -14,7 +14,7 @@ use Sabre\Uri;
  * @author Evert Pot (http://evertpot.com/)
  * @license http://sabre.io/license/ Modified BSD License
  */
-class Tree {
+class Tree implements ICollection {
 
     /**
      * The root node
@@ -60,21 +60,20 @@ class Tree {
             return $this->rootNode;
         }
 
-        // Attempting to fetch its parent
-        list($parentName, $baseName) = Uri\split($path);
+        $parts = explode('/', $path);
+        $node = $this->rootNode;
 
-        // If there was no parent, we must simply ask it from the root node.
-        if ($parentName === "") {
-            $node = $this->rootNode->getChild($baseName);
-        } else {
-            // Otherwise, we recursively grab the parent and ask him/her.
-            $parent = $this->getNodeForPath($parentName);
-
-            if (!($parent instanceof ICollection))
+        while (count($parts)) {
+            if (!($node instanceof ICollection))
                 throw new Exception\NotFound('Could not find node at path: ' . $path);
 
-            $node = $parent->getChild($baseName);
-
+            if ($node instanceof self) {
+                $node = $node->getNodeForPath(implode('/', $parts));
+                break;
+            } else {
+                $part = array_shift($parts);
+                if ($part !== '') $node = $node->getChild($part);
+            }
         }
 
         $this->cache[$path] = $node;
@@ -176,9 +175,13 @@ class Tree {
      * @param string $path
      * @return void
      */
-    function delete($path) {
+    function delete($path = null) {
 
-        $node = $this->getNodeForPath($path);
+        if ($path === null || $path === '') {
+            $node = $this->rootNode;
+        } else {
+            $node = $this->getNodeForPath($path);
+        }
         $node->delete();
 
         list($parent) = Uri\split($path);
@@ -189,12 +192,17 @@ class Tree {
     /**
      * Returns a list of childnodes for a given path.
      *
-     * @param string $path
+     * @param string|null $path
      * @return \Traversable
      */
-    function getChildren($path) {
+    function getChildren($path = null) {
 
-        $node = $this->getNodeForPath($path);
+        if ($path === null || $path === '') {
+            $node = $this->rootNode;
+        } else {
+            $node = $this->getNodeForPath($path);
+        }
+
         $basePath = trim($path, '/');
         if ($basePath !== '') $basePath .= '/';
 
@@ -341,4 +349,32 @@ class Tree {
 
     }
 
+    function createFile($name, $data = null) {
+        return $this->rootNode->createFile($name, $data);
+    }
+
+    function createDirectory($name) {
+        $this->rootNode->createDirectory($name);
+    }
+
+    function getChild($name) {
+        return $this->rootNode->getChild($name);
+    }
+
+    function childExists($name) {
+        return $this->rootNode->childExists($name);
+    }
+
+    function getName() {
+        return $this->rootNode->getName();
+    }
+
+    function setName($name) {
+        $this->rootNode->setName($name);
+    }
+
+    function getLastModified()
+    {
+        return $this->rootNode->getLastModified();
+    }
 }

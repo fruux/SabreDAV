@@ -97,6 +97,14 @@ class TreeTest extends \PHPUnit\Framework\TestCase {
 
     }
 
+    function testGetSubTreeNode() {
+
+        $tree = new TreeMock();
+        $this->assertInstanceOf(INode::class, $tree->getNodeForPath('subtree/sub/1'));
+        $this->assertInstanceOf(INode::class, $tree->getNodeForPath('subtree/2/3'));
+
+    }
+
 }
 
 class TreeMock extends Tree {
@@ -119,6 +127,12 @@ class TreeMock extends Tree {
                     new TreeFileTester('1'),
                     new TreeFileTester('2'),
                     new TreeFileTester('3'),
+                ]),
+                new NodeByPathTester('subtree', [
+                    new TreeFileTester('sub/1'),
+                    new TreeDirectoryTester('2', [
+                        new TreeFileTester('3')
+                    ])
                 ])
             ])
         );
@@ -173,6 +187,16 @@ class TreeDirectoryTester extends SimpleCollection {
 
     }
 
+}
+
+class NodeByPathTester extends SimpleCollection implements INodeByPath {
+    function getNodeForPath($path) {
+        if (isset($this->children[$path])) {
+            return $this->children[$path];
+        } else {
+            return null;
+        }
+    }
 }
 
 class TreeFileTester extends File implements IProperties {

@@ -954,7 +954,7 @@ SQL;
             $query = 'SELECT uri, operation, synctoken FROM '.$this->calendarChangesTableName.' WHERE synctoken >= ?  AND calendarid = ? ORDER BY synctoken';
             if ($limit > 0) {
                 // Fetch one more raw to detect result truncation
-                $query .= ' LIMIT ' . ((int)$limit + 1);
+                $query .= ' LIMIT '.((int) $limit + 1);
             }
 
             // Fetching all changes
@@ -977,7 +977,7 @@ SQL;
                     break;
                 }
 
-                if ($currentToken === null || $currentToken < $operation['synctoken'] + 1) {
+                if (null === $currentToken || $currentToken < $operation['synctoken'] + 1) {
                     // SyncToken in CalDAV perspective is consistently the next number of the last synced change event in this class.
                     $currentToken = $operation['synctoken'] + 1;
                 }
@@ -1002,7 +1002,6 @@ SQL;
                 // This means returned value is equivalent to syncToken
                 $result['syncToken'] = $syncToken;
             }
-
         } else {
             // Current synctoken
             $stmt = $this->pdo->prepare('SELECT synctoken FROM '.$this->calendarTableName.' WHERE id = ?');
